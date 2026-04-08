@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
 
 interface Step {
   number: number;
@@ -29,7 +28,7 @@ export function StepIndicator({ currentStep, completedSteps, onStepClick }: Step
   return (
     <div className="w-full">
       {/* Desktop view */}
-      <div className="hidden lg:flex items-center justify-between">
+      <div className="hidden lg:flex items-center gap-1">
         {steps.map((step, index) => {
           const isCompleted = completedSteps.includes(step.number);
           const isCurrent = currentStep === step.number;
@@ -38,37 +37,33 @@ export function StepIndicator({ currentStep, completedSteps, onStepClick }: Step
             <div key={step.number} className="flex items-center flex-1">
               <button
                 onClick={() => onStepClick(step.number)}
-                className="flex flex-col items-center group"
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors w-full",
+                  isCurrent
+                    ? "bg-muted text-foreground"
+                    : isCompleted
+                    ? "text-muted-foreground hover:bg-muted/50"
+                    : "text-muted-foreground/60 hover:bg-muted/50"
+                )}
               >
-                <div
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium transition-all",
-                    isCompleted
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : isCurrent
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground group-hover:border-primary/50"
-                  )}
-                >
-                  {isCompleted ? <Check className="h-5 w-5" /> : step.number}
-                </div>
-                <span
-                  className={cn(
-                    "mt-2 text-xs font-medium whitespace-nowrap",
-                    isCurrent ? "text-primary" : "text-muted-foreground"
-                  )}
-                >
-                  {step.title}
-                  {step.required && <span className="text-destructive ml-0.5">*</span>}
+                <span className={cn(
+                  "text-xs font-medium",
+                  isCurrent ? "text-foreground" : "text-muted-foreground"
+                )}>
+                  {String(step.number).padStart(2, '0')}
                 </span>
+                <span className={cn(
+                  "font-medium whitespace-nowrap",
+                  isCurrent ? "text-foreground" : ""
+                )}>
+                  {step.title}
+                </span>
+                {step.required && (
+                  <span className="text-xs text-muted-foreground">*</span>
+                )}
               </button>
               {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    "flex-1 h-0.5 mx-2",
-                    isCompleted ? "bg-primary" : "bg-border"
-                  )}
-                />
+                <div className="w-px h-4 bg-border mx-1" />
               )}
             </div>
           );
@@ -77,13 +72,15 @@ export function StepIndicator({ currentStep, completedSteps, onStepClick }: Step
 
       {/* Mobile view */}
       <div className="lg:hidden">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-medium text-foreground">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             步骤 {currentStep} / {steps.length}
           </span>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm font-medium text-foreground">
             {steps[currentStep - 1]?.title}
-            {steps[currentStep - 1]?.required && <span className="text-destructive ml-0.5">*</span>}
+            {steps[currentStep - 1]?.required && (
+              <span className="text-muted-foreground ml-1">*</span>
+            )}
           </span>
         </div>
         <div className="flex gap-1">
@@ -96,11 +93,11 @@ export function StepIndicator({ currentStep, completedSteps, onStepClick }: Step
                 key={step.number}
                 onClick={() => onStepClick(step.number)}
                 className={cn(
-                  "flex-1 h-2 rounded-full transition-all",
+                  "flex-1 h-1 rounded-full transition-all",
                   isCompleted
-                    ? "bg-primary"
+                    ? "bg-foreground"
                     : isCurrent
-                    ? "bg-primary/50"
+                    ? "bg-foreground/50"
                     : "bg-border"
                 )}
               />

@@ -67,137 +67,151 @@ export function PersonalInfoForm({ data, onChange }: PersonalInfoFormProps) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <User className="h-6 w-6 text-foreground" />
-        <h2 className="text-2xl font-semibold text-foreground">个人基本信息</h2>
+      <div className="flex items-center gap-3 border-b border-border pb-6">
+        <User className="h-5 w-5 text-muted-foreground" />
+        <h2 className="text-xl font-semibold text-foreground">个人基本信息</h2>
       </div>
 
       {/* Row 1: Name, Email, Phone */}
-      <div className="grid gap-8 md:grid-cols-3">
-        <div className="space-y-2 border-b border-border pb-2">
+      <div className="grid gap-x-8 gap-y-8 md:grid-cols-3">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            姓名 <span className="text-destructive">*</span>
+            姓名 *
           </label>
-          <input
-            type="text"
-            placeholder="请输入您的姓名"
-            value={data.fullName}
-            onChange={(e) => handleChange("fullName", e.target.value)}
-            className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-          />
+          <div className="border-b border-border pb-2">
+            <input
+              type="text"
+              placeholder="请输入您的姓名"
+              value={data.fullName}
+              onChange={(e) => handleChange("fullName", e.target.value)}
+              className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2 border-b border-border pb-2">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            邮箱 <span className="text-destructive">*</span>
+            邮箱 *
           </label>
-          <input
-            type="email"
-            placeholder="example@email.com"
-            value={data.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-            className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-          />
+          <div className="border-b border-border pb-2">
+            <input
+              type="email"
+              placeholder="example@email.com"
+              value={data.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2 border-b border-border pb-2">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             手机号
           </label>
-          <input
-            type="tel"
-            placeholder="+86 xxx xxxx xxxx"
-            value={data.phone}
-            onChange={(e) => handleChange("phone", e.target.value)}
-            className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-          />
+          <div className="border-b border-border pb-2">
+            <input
+              type="tel"
+              placeholder="+86 xxx xxxx xxxx"
+              value={data.phone}
+              onChange={(e) => handleChange("phone", e.target.value)}
+              className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
       {/* Row 2: Nationality, Major, Degree */}
-      <div className="grid gap-8 md:grid-cols-3">
-        <div className="space-y-2 border-b border-border pb-2">
+      <div className="grid gap-x-8 gap-y-8 md:grid-cols-3">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             国籍
           </label>
-          <Select
-            value={data.nationality}
-            onValueChange={(value) => handleChange("nationality", value)}
-          >
-            <SelectTrigger className="w-full border-0 bg-transparent p-0 text-lg shadow-none focus:ring-0 h-auto">
-              <SelectValue placeholder="请选择国籍" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cn">中国</SelectItem>
-              <SelectItem value="other">其他</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="border-b border-border pb-2">
+            <Select
+              value={data.nationality}
+              onValueChange={(value) => handleChange("nationality", value)}
+            >
+              <SelectTrigger className="w-full border-0 bg-transparent p-0 text-base shadow-none focus:ring-0 h-auto">
+                <SelectValue placeholder="请选择国籍" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cn">中国</SelectItem>
+                <SelectItem value="other">其他</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="space-y-2 border-b border-border pb-2">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            意向专业 <span className="text-destructive">*</span>
+            意向专业 *
           </label>
-          <Select
-            value={data.intendedMajor}
-            onValueChange={(value) => handleChange("intendedMajor", value)}
-          >
-            <SelectTrigger className="w-full border-0 bg-transparent p-0 text-lg shadow-none focus:ring-0 h-auto">
-              <SelectValue placeholder="请选择意向专业" />
-            </SelectTrigger>
-            <SelectContent>
-              {popularMajors.map((major) => (
-                <SelectItem key={major} value={major}>
-                  {major}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="border-b border-border pb-2">
+            <Select
+              value={data.intendedMajor}
+              onValueChange={(value) => handleChange("intendedMajor", value)}
+            >
+              <SelectTrigger className="w-full border-0 bg-transparent p-0 text-base shadow-none focus:ring-0 h-auto">
+                <SelectValue placeholder="请选择意向专业" />
+              </SelectTrigger>
+              <SelectContent>
+                {popularMajors.map((major) => (
+                  <SelectItem key={major} value={major}>
+                    {major}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="space-y-2 border-b border-border pb-2">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            目标学位 <span className="text-destructive">*</span>
+            目标学位 *
           </label>
-          <Select
-            value={data.targetDegree}
-            onValueChange={(value) => handleChange("targetDegree", value)}
-          >
-            <SelectTrigger className="w-full border-0 bg-transparent p-0 text-lg shadow-none focus:ring-0 h-auto">
-              <SelectValue placeholder="请选择目标学位" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bachelor">本科 Bachelor</SelectItem>
-              <SelectItem value="master">硕士 Master</SelectItem>
-              <SelectItem value="phd">博士 PhD</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="border-b border-border pb-2">
+            <Select
+              value={data.targetDegree}
+              onValueChange={(value) => handleChange("targetDegree", value)}
+            >
+              <SelectTrigger className="w-full border-0 bg-transparent p-0 text-base shadow-none focus:ring-0 h-auto">
+                <SelectValue placeholder="请选择目标学位" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bachelor">本科 Bachelor</SelectItem>
+                <SelectItem value="master">硕士 Master</SelectItem>
+                <SelectItem value="phd">博士 PhD</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
       {/* Row 3: Target Semester */}
-      <div className="grid gap-8 md:grid-cols-3">
-        <div className="space-y-2 border-b border-border pb-2">
+      <div className="grid gap-x-8 gap-y-8 md:grid-cols-3">
+        <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            目标入学时间 <span className="text-destructive">*</span>
+            目标入学时间 *
           </label>
-          <Select
-            value={data.targetSemester}
-            onValueChange={(value) => handleChange("targetSemester", value)}
-          >
-            <SelectTrigger className="w-full border-0 bg-transparent p-0 text-lg shadow-none focus:ring-0 h-auto">
-              <SelectValue placeholder="请选择入学时间" />
-            </SelectTrigger>
-            <SelectContent>
-              {semesters.map((semester) => (
-                <SelectItem key={semester} value={semester}>
-                  {semester}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="border-b border-border pb-2">
+            <Select
+              value={data.targetSemester}
+              onValueChange={(value) => handleChange("targetSemester", value)}
+            >
+              <SelectTrigger className="w-full border-0 bg-transparent p-0 text-base shadow-none focus:ring-0 h-auto">
+                <SelectValue placeholder="请选择入学时间" />
+              </SelectTrigger>
+              <SelectContent>
+                {semesters.map((semester) => (
+                  <SelectItem key={semester} value={semester}>
+                    {semester}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -205,7 +219,7 @@ export function PersonalInfoForm({ data, onChange }: PersonalInfoFormProps) {
       <div className="space-y-4 pt-4 border-t border-border">
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            目标留学国家/地区 <span className="text-destructive">*</span>
+            目标留学国家/地区 *
           </label>
           {data.targetCountry?.length > 0 && (
             <span className="text-xs text-muted-foreground">
@@ -217,13 +231,13 @@ export function PersonalInfoForm({ data, onChange }: PersonalInfoFormProps) {
           {targetCountries.map((country) => (
             <label
               key={country.value}
-              className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+              className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2.5 transition-colors hover:bg-muted has-[:checked]:border-foreground has-[:checked]:bg-muted"
             >
               <Checkbox
                 checked={data.targetCountry?.includes(country.value)}
                 onCheckedChange={() => toggleCountry(country.value)}
               />
-              <span className="text-sm font-medium">{country.label}</span>
+              <span className="text-sm text-foreground">{country.label}</span>
             </label>
           ))}
         </div>

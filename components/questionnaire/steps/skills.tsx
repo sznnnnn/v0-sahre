@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Wrench, X } from "lucide-react";
+import { Plus, X, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Skill } from "@/lib/types";
 
@@ -87,31 +85,34 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
   }, {} as Record<string, Skill[]>);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold text-foreground">技能</h2>
-        <p className="text-muted-foreground">
-          添加您掌握的技能，包括技术能力、语言能力等
-        </p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Wrench className="h-6 w-6 text-foreground" />
+        <h2 className="text-2xl font-semibold text-foreground">技能</h2>
       </div>
 
-      {/* 添加新技能 */}
-      <div className="rounded-lg border border-border p-4 space-y-4">
-        <p className="font-medium text-foreground">添加技能</p>
+      {/* Add Skill Form */}
+      <div className="space-y-4 rounded-lg border border-border p-6">
+        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          添加技能
+        </label>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="flex-1">
-            <Input
+          <div className="flex-1 border-b border-border pb-2">
+            <input
+              type="text"
               placeholder="技能名称，如：Python"
               value={newSkill.name || ""}
               onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addSkill()}
+              className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
             />
           </div>
           <Select
             value={newSkill.category}
             onValueChange={(value) => setNewSkill({ ...newSkill, category: value as Skill["category"] })}
           >
-            <SelectTrigger className="w-full sm:w-32">
+            <SelectTrigger className="w-full sm:w-32 border-0 border-b border-border rounded-none bg-transparent shadow-none focus:ring-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -126,7 +127,7 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
             value={newSkill.level}
             onValueChange={(value) => setNewSkill({ ...newSkill, level: value as Skill["level"] })}
           >
-            <SelectTrigger className="w-full sm:w-24">
+            <SelectTrigger className="w-full sm:w-24 border-0 border-b border-border rounded-none bg-transparent shadow-none focus:ring-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -137,15 +138,17 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={addSkill} disabled={!newSkill.name}>
+          <Button onClick={addSkill} disabled={!newSkill.name} size="icon" className="shrink-0">
             <Plus className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* 推荐技能 */}
+      {/* Suggested Skills */}
       <div className="space-y-4">
-        <p className="text-sm font-medium text-muted-foreground">快速添加常见技能</p>
+        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          快速添加常见技能
+        </label>
         {Object.entries(suggestedSkills).map(([category, skills]) => (
           <div key={category} className="space-y-2">
             <p className="text-xs text-muted-foreground">
@@ -158,7 +161,7 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
                   <Badge
                     key={skill}
                     variant={isAdded ? "default" : "outline"}
-                    className={!isAdded ? "cursor-pointer hover:bg-primary/10" : ""}
+                    className={!isAdded ? "cursor-pointer hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300" : ""}
                     onClick={() => !isAdded && addSuggestedSkill(skill, category as Skill["category"])}
                   >
                     {isAdded ? skill : `+ ${skill}`}
@@ -170,10 +173,12 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
         ))}
       </div>
 
-      {/* 已添加的技能 */}
+      {/* Added Skills */}
       {data.length > 0 && (
-        <div className="space-y-4">
-          <p className="font-medium text-foreground">已添加的技能</p>
+        <div className="space-y-4 pt-4 border-t border-border">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            已添加的技能
+          </label>
           {Object.entries(groupedSkills).map(([category, skills]) => (
             <div key={category} className="space-y-2">
               <p className="text-sm text-muted-foreground">
@@ -183,7 +188,7 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
                 {skills.map((skill) => (
                   <div
                     key={skill.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                    className="flex items-center justify-between border-b border-border pb-3"
                   >
                     <div className="flex items-center gap-3">
                       <Wrench className="h-4 w-4 text-muted-foreground" />
@@ -194,7 +199,7 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
                         value={skill.level}
                         onValueChange={(value) => updateSkillLevel(skill.id, value as Skill["level"])}
                       >
-                        <SelectTrigger className="h-8 w-20 text-xs">
+                        <SelectTrigger className="h-8 w-20 text-xs border-0 bg-muted/50 shadow-none">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

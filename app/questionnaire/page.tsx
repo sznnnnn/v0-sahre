@@ -162,9 +162,6 @@ export default function QuestionnairePage() {
 
           {/* File Upload */}
           <div className="mt-10 border-t border-border pt-8">
-            <h3 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              补充材料（可选）
-            </h3>
             <FileUpload
               files={data.files}
               onFilesChange={(files) => updateData("files", files)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Upload, X, FileText, Image, File } from "lucide-react";
+import { Upload, X, FileText, Image, File, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { UploadedFile } from "@/lib/types";
@@ -89,7 +89,23 @@ export function FileUpload({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Paperclip className="h-5 w-5 text-foreground" />
+          <div>
+            <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              补充材料（可选）
+            </h3>
+          </div>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {files.length} / {maxFiles} 个文件
+        </span>
+      </div>
+
+      {/* Upload Area */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -97,16 +113,19 @@ export function FileUpload({
         className={cn(
           "relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors",
           isDragging
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/50",
+            ? "border-teal-500 bg-teal-50"
+            : "border-border hover:border-teal-300 hover:bg-muted/50",
           files.length >= maxFiles && "pointer-events-none opacity-50"
         )}
       >
-        <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
-        <p className="mb-2 text-sm font-medium text-foreground">
+        <Upload className={cn(
+          "mb-3 h-8 w-8",
+          isDragging ? "text-teal-600" : "text-muted-foreground"
+        )} />
+        <p className="mb-1 text-sm font-medium text-foreground">
           拖拽文件到这里，或点击上传
         </p>
-        <p className="mb-4 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           支持 PDF、Word、图片，单个文件最大 {maxSize}MB
         </p>
         <input
@@ -117,11 +136,9 @@ export function FileUpload({
           className="absolute inset-0 cursor-pointer opacity-0"
           disabled={files.length >= maxFiles}
         />
-        <Button variant="outline" size="sm" disabled={files.length >= maxFiles}>
-          选择文件
-        </Button>
       </div>
 
+      {/* File List */}
       {files.length > 0 && (
         <div className="space-y-2">
           {files.map((file) => {
@@ -129,7 +146,7 @@ export function FileUpload({
             return (
               <div
                 key={file.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                className="flex items-center gap-3 border-b border-border pb-3"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
                   <Icon className="h-5 w-5 text-muted-foreground" />
@@ -155,10 +172,6 @@ export function FileUpload({
           })}
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        已上传 {files.length} / {maxFiles} 个文件
-      </p>
     </div>
   );
 }
