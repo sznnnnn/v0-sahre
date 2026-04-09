@@ -12,6 +12,9 @@ import {
 import { Trash2, GraduationCap, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Education } from "@/lib/types";
+import { SchoolNameSearch } from "@/components/questionnaire/school-name-search";
+import { SchoolLogoMark } from "@/components/match/school-logo-mark";
+import { faviconUrlForSchoolLabel } from "@/lib/school-favicon";
 
 interface EducationFormProps {
   data: Education[];
@@ -23,7 +26,6 @@ const emptyEducation: Education = {
   degree: "",
   major: "",
   gpa: "",
-  gpaScale: "",
   startDate: "",
   endDate: "",
   achievements: "",
@@ -84,9 +86,12 @@ export function EducationForm({ data, onChange }: EducationFormProps) {
                 onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
               >
                 <div className="flex items-center gap-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  <SchoolLogoMark
+                    logoUrl={edu.school ? faviconUrlForSchoolLabel(edu.school) : undefined}
+                    label={edu.school || "校"}
+                    size="md"
+                    rounded="full"
+                  />
                   <div>
                     <p className="text-sm font-medium text-foreground">
                       {edu.school || "未填写学校"}
@@ -129,15 +134,10 @@ export function EducationForm({ data, onChange }: EducationFormProps) {
                     <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       学校名称 *
                     </label>
-                    <div className="border-b border-border pb-2">
-                      <input
-                        type="text"
-                        placeholder="如：北京大学"
-                        value={edu.school}
-                        onChange={(e) => updateEducation(index, "school", e.target.value)}
-                        className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-                      />
-                    </div>
+                    <SchoolNameSearch
+                      value={edu.school}
+                      onChange={(v) => updateEducation(index, "school", v)}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -153,7 +153,6 @@ export function EducationForm({ data, onChange }: EducationFormProps) {
                           <SelectValue placeholder="请选择学位" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="高中">高中</SelectItem>
                           <SelectItem value="本科">本科</SelectItem>
                           <SelectItem value="硕士">硕士</SelectItem>
                           <SelectItem value="博士">博士</SelectItem>
@@ -180,40 +179,18 @@ export function EducationForm({ data, onChange }: EducationFormProps) {
 
                 {/* Row 2 */}
                 <div className="grid gap-x-8 gap-y-6 md:grid-cols-3 mb-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        GPA
-                      </label>
-                      <div className="border-b border-border pb-2">
-                        <input
-                          type="text"
-                          placeholder="3.8"
-                          value={edu.gpa}
-                          onChange={(e) => updateEducation(index, "gpa", e.target.value)}
-                          className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        满分
-                      </label>
-                      <div className="border-b border-border pb-2">
-                        <Select
-                          value={edu.gpaScale}
-                          onValueChange={(value) => updateEducation(index, "gpaScale", value)}
-                        >
-                          <SelectTrigger className="w-full border-0 bg-transparent p-0 text-base shadow-none focus:ring-0 h-auto">
-                            <SelectValue placeholder="4.0" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="4.0">4.0</SelectItem>
-                            <SelectItem value="5.0">5.0</SelectItem>
-                            <SelectItem value="100">100</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      成绩 / 绩点
+                    </label>
+                    <div className="border-b border-border pb-2">
+                      <input
+                        type="text"
+                        placeholder="如 3.8/4.0、5 分制 4.2、百分制 88、均分 85"
+                        value={edu.gpa}
+                        onChange={(e) => updateEducation(index, "gpa", e.target.value)}
+                        className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                      />
                     </div>
                   </div>
 

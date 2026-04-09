@@ -12,6 +12,7 @@ import {
 import { Plus, X, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import type { Skill } from "@/lib/types";
 
 interface SkillsFormProps {
@@ -205,14 +206,20 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
             <p className="text-xs text-muted-foreground">
               {skillCategories.find((c) => c.value === category)?.label}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {skills.map((skill) => {
                 const isAdded = data.some((s) => s.name === skill);
                 return (
                   <Badge
                     key={skill}
-                    variant={isAdded ? "default" : "outline"}
-                    className={!isAdded ? "cursor-pointer hover:bg-muted/50" : ""}
+                    variant="outline"
+                    className={cn(
+                      "border-border/40 bg-transparent px-2 py-0.5 text-[11px] font-normal text-muted-foreground shadow-none",
+                      "transition-colors",
+                      isAdded && "border-transparent bg-muted/30 text-muted-foreground/70",
+                      !isAdded &&
+                        "cursor-pointer hover:border-border/50 hover:bg-muted/25 hover:text-foreground/70"
+                    )}
                     onClick={() => !isAdded && addSuggestedSkill(skill, category as Skill["category"])}
                   >
                     {isAdded ? skill : `+${skill}`}

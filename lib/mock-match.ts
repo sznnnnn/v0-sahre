@@ -1,7 +1,9 @@
 import type { School, Program, MatchResult, QuestionnaireData } from "./types";
+import { enrichSchool } from "./school-enrichment";
+import { faviconUrlForSchoolId } from "./school-favicon";
 
-// 模拟学校数据库
-const schoolsDatabase: School[] = [
+// 模拟学校数据库（合并院校介绍文案）
+const schoolsDatabase: School[] = ([
   // 冲刺校 (Reach)
   { id: "mit", name: "麻省理工学院", nameEn: "MIT", country: "美国", city: "波士顿", ranking: 1, category: "reach" },
   { id: "stanford", name: "斯坦福大学", nameEn: "Stanford University", country: "美国", city: "斯坦福", ranking: 3, category: "reach" },
@@ -25,7 +27,9 @@ const schoolsDatabase: School[] = [
   { id: "manchester", name: "曼彻斯特大学", nameEn: "University of Manchester", country: "英国", city: "曼彻斯特", ranking: 28, category: "safety" },
   { id: "edinburgh", name: "爱丁堡大学", nameEn: "University of Edinburgh", country: "英国", city: "爱丁堡", ranking: 15, category: "safety" },
   { id: "ubc", name: "不列颠哥伦比亚大学", nameEn: "University of British Columbia", country: "加拿大", city: "温哥华", ranking: 34, category: "safety" },
-];
+] as School[])
+  .map((s) => ({ ...s, logo: faviconUrlForSchoolId(s.id) ?? s.logo }))
+  .map(enrichSchool);
 
 type ProgramSeed = Omit<Program, "matchScore" | "matchReasons" | "curriculumNote">;
 
@@ -130,12 +134,38 @@ function firstYearInText(text: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function matchDegree(programDegree: string, targetDegree: QuestionnaireData["personalInfo"]["targetDegree"]) {
-  if (!targetDegree) return true;
-  if (targetDegree === "master") return ["MS", "MSc", "MPhil", "MBA"].includes(programDegree);
-  if (targetDegree === "phd") return ["PhD", "DPhil"].includes(programDegree);
-  if (targetDegree === "bachelor") return ["BS", "BA", "BSc"].includes(programDegree);
-  return true;
+/** 从自由填写的成绩文本推断档位（演示用） */
+function inferEducationGradeTier(raw: string): "high" | "mid" | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const looksPercent = /%|百分|均分|百分之/.test(text);
+  const firstNum = text.match(/(\d+(?:\.\d+)?)/);
+  if (!firstNum) return null;
+  const v = parseFloat(firstNum[1]);
+  if (!Number.isFinite(v)) return null;
+
+  if (looksPercent || v > 10) {
+    if (v >= 90) return "high";
+    if (v >= 82) return "mid";
+    return null;
+  }
+
+  const slash = text.match(/(\d+(?:\.\d+)?)\s*\/\s*(4(?:\.0)?|5(?:\.0)?)/i);
+  if (slash) {
+    const num = parseFloat(slash[1]);
+    const denom = /^4/i.test(slash[2]) ? 4 : 5;
+    const onFour = denom === 4 ? num : (num / 5) * 4;
+    if (onFour >= 3.8) return "high";
+    if (onFour >= 3.5) return "mid";
+    return null;
+  }
+
+  if (v <= 5.5) {
+    const onFour = v > 4.5 ? (v / 5) * 4 : v;
+    if (onFour >= 3.8) return "high";
+    if (onFour >= 3.5) return "mid";
+  }
+  return null;
 }
 
 function pickByCategory(schools: School[], category: School["category"], count: number): School[] {
@@ -145,25 +175,91 @@ function pickByCategory(schools: School[], category: School["category"], count: 
     .slice(0, count);
 }
 
+/** 用户填写的意向院校拆成多条 */
+function splitKnownSchoolInput(raw: string): string[] {
+  return raw
+    .split(/[\n、,，;；|]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2);
+}
+
+function schoolMatchesUserHint(school: School, hint: string): boolean {
+  const h = hint.trim().toLowerCase();
+  if (h.length < 2) return false;
+  if (school.id === h) return true;
+  const cn = school.name.toLowerCase();
+  const en = school.nameEn.toLowerCase();
+  return cn.includes(h) || en.includes(h);
+}
+
+/** 按填写顺序解析出在模拟库中可识别的学校（每条约取首个匹配） */
+function resolveKnownTargetSchools(raw: string): School[] {
+  const hints = splitKnownSchoolInput(raw);
+  const out: School[] = [];
+  const seen = new Set<string>();
+  for (const hint of hints) {
+    const found = schoolsDatabase.find((s) => schoolMatchesUserHint(s, hint));
+    if (found && !seen.has(found.id)) {
+      seen.add(found.id);
+      out.push(found);
+    }
+  }
+  return out;
+}
+
 /** 用问卷里的本科/教育块与目标方向拼首条说明，不写申请批次类建议 */
 function buildProfileMatchHint(userData: QuestionnaireData): string | null {
   const p = userData.personalInfo;
   const edu0 = userData.education[0];
   const school = edu0?.school?.trim();
   const eduMajor = edu0?.major?.trim();
-  const undergradField = p.undergraduateMajor?.trim();
   const intended =
     p.intendedMajor?.trim() || p.intendedApplicationField?.trim();
 
-  const undergradParts = [school, eduMajor || undergradField].filter(Boolean);
-  if (undergradParts.length === 0 && !intended) return null;
+  const undergradParts = [school, eduMajor].filter(Boolean);
+  const research = p.researchInterestNote?.trim();
+  const motivation = p.motivationNote?.trim();
+  const knownSchoolsRaw = p.knownTargetSchools?.trim();
 
-  let s = "已根据你在问卷里填写的基础信息";
-  if (undergradParts.length > 0) {
-    s += `：${undergradParts.join(" · ")}`;
+  const hasEduLine = undergradParts.length > 0 || !!intended;
+  const hasSupplement = !!(research || motivation || knownSchoolsRaw);
+  if (!hasEduLine && !hasSupplement) return null;
+
+  let s = "";
+  if (hasEduLine) {
+    s = "已根据你在问卷里填写的基础信息";
+    if (undergradParts.length > 0) {
+      s += `：${undergradParts.join(" · ")}`;
+    }
+    if (intended) {
+      s += undergradParts.length > 0 ? `；目标方向为「${intended}」` : `：目标方向为「${intended}」`;
+    }
+  } else {
+    s = "已结合你在问卷中提供的补充信息";
   }
-  if (intended) {
-    s += undergradParts.length > 0 ? `；目标方向为「${intended}」` : `：目标方向为「${intended}」`;
+  const extras: string[] = [];
+  if (research) {
+    extras.push(
+      research.length > 40 ? `研究兴趣：${research.slice(0, 40)}…` : `研究兴趣：${research}`
+    );
+  }
+  if (motivation) {
+    extras.push(
+      motivation.length > 32 ? `动机：${motivation.slice(0, 32)}…` : `动机：${motivation}`
+    );
+  }
+  if (extras.length > 0) {
+    s += `（${extras.join("；")}）`;
+  }
+  if (knownSchoolsRaw) {
+    const resolved = resolveKnownTargetSchools(knownSchoolsRaw);
+    if (resolved.length > 0) {
+      s += `（意向院校已对齐库内：${resolved.map((x) => x.nameEn).join("、")}）`;
+    } else {
+      const short =
+        knownSchoolsRaw.length > 36 ? `${knownSchoolsRaw.slice(0, 36)}…` : knownSchoolsRaw;
+      s += `（已记录意向院校：${short}）`;
+    }
   }
   s += "，并据此筛选项目";
   return s;
@@ -173,14 +269,13 @@ function buildProfileMatchHint(userData: QuestionnaireData): string | null {
 export function generateMatchResult(userData: QuestionnaireData): MatchResult {
   const targetCountries = userData.personalInfo.targetCountry || [];
   const intendedMajor = userData.personalInfo.intendedMajor || "";
-  const undergraduateMajor = userData.personalInfo.undergraduateMajor || "";
   const intendedField = userData.personalInfo.intendedApplicationField || "";
   const budgetEstimate = userData.personalInfo.budgetEstimate || "";
   const plannedStudyDuration = userData.personalInfo.plannedStudyDuration || "";
-  const targetDegree = userData.personalInfo.targetDegree;
 
-  const targetCountryNames = targetCountries.map((c) => countryMapping[c] || c);
-  const majorSearchText = [intendedMajor, intendedField, undergraduateMajor].filter(Boolean).join(" ");
+  const countryCodes = targetCountries.filter((c) => c !== "undecided");
+  const targetCountryNames = countryCodes.map((c) => countryMapping[c] || c);
+  const majorSearchText = [intendedMajor, intendedField].filter(Boolean).join(" ");
   const relevantProgramTypes = getProgramTagsByMajor(majorSearchText);
 
   // 根据国家偏好筛选学校，若为空则回退到全量
@@ -196,6 +291,13 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
     ...pickByCategory(schoolPool, "safety", 2),
   ];
 
+  const userKnownSchools = resolveKnownTargetSchools(userData.personalInfo.knownTargetSchools || "");
+  if (userKnownSchools.length > 0) {
+    const hintedIds = new Set(userKnownSchools.map((s) => s.id));
+    const rest = selectedSchools.filter((s) => !hintedIds.has(s.id));
+    selectedSchools = [...userKnownSchools, ...rest].slice(0, 8);
+  }
+
   // 若按国家筛选导致档位不足，补齐到总量 8 所
   if (selectedSchools.length < 8) {
     const selectedIds = new Set(selectedSchools.map((s) => s.id));
@@ -208,20 +310,12 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
 
   const selectedSchoolIds = selectedSchools.map((s) => s.id);
 
-  // 优先专业+学位双重匹配
+  // 优先按专业关键词匹配项目
   let filteredPrograms = programsDatabase.filter((program) => {
     if (!selectedSchoolIds.includes(program.schoolId)) return false;
     const majorMatched = relevantProgramTypes.some((type) => program.id.includes(type));
-    const degreeMatched = matchDegree(program.degree, targetDegree);
-    return majorMatched && degreeMatched;
+    return majorMatched;
   });
-
-  // 不足时放宽为仅匹配学位
-  if (filteredPrograms.length < 12) {
-    filteredPrograms = programsDatabase.filter(
-      (program) => selectedSchoolIds.includes(program.schoolId) && matchDegree(program.degree, targetDegree)
-    );
-  }
 
   // 仍不足时放宽为学校范围内全量
   if (filteredPrograms.length < 12) {
@@ -239,6 +333,7 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
 
   // 添加匹配分数和原因
   const profileHint = buildProfileMatchHint(userData);
+  const hintedSchoolIdSet = new Set(userKnownSchools.map((s) => s.id));
 
   const programs: Program[] = filteredPrograms.map((program) => {
     const school = selectedSchools.find((s) => s.id === program.schoolId);
@@ -248,15 +343,20 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
       matchReasons.push(profileHint);
     }
 
+    if (hintedSchoolIdSet.has(program.schoolId)) {
+      matchScore += 4;
+      matchReasons.push("你已在问卷中填写该校为意向院校");
+    }
+
     // 根据背景调整分数
     if (userData.education.length > 0) {
-      const gpa = parseFloat(userData.education[0]?.gpa || "0");
-      if (gpa >= 3.8) {
+      const tier = inferEducationGradeTier(userData.education[0]?.gpa || "");
+      if (tier === "high") {
         matchScore += 10;
-        matchReasons.push("GPA优秀，符合项目要求");
-      } else if (gpa >= 3.5) {
+        matchReasons.push("成绩表现突出，符合项目要求");
+      } else if (tier === "mid") {
         matchScore += 5;
-        matchReasons.push("GPA良好");
+        matchReasons.push("成绩良好");
       }
     }
     
@@ -280,22 +380,12 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
       matchReasons.push("符合目标国家/地区偏好");
     }
 
-    if (targetDegree && matchDegree(program.degree, targetDegree)) {
-      matchScore += 3;
-      matchReasons.push("学位层级匹配");
-    }
-
     if (intendedMajor || intendedField) {
       const majorHit = relevantProgramTypes.some((type) => program.id.includes(type));
       if (majorHit) {
         matchScore += 4;
         matchReasons.push("专业方向匹配度高");
       }
-    }
-
-    if (undergraduateMajor) {
-      matchScore += 2;
-      matchReasons.push("本科背景已纳入方向判断");
     }
 
     if (budgetEstimate) {

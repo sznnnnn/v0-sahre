@@ -1,44 +1,123 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, RefreshCw, ChevronRight, LayoutGrid } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowLeft, ArrowRight, RefreshCw, ChevronRight, LayoutGrid } from "lucide-react";
 import { GuestBanner } from "@/components/questionnaire/guest-banner";
 import { SchoolCard } from "@/components/match/school-card";
+import { SchoolRichInfo } from "@/components/match/school-rich-info";
+import { SchoolNotionCover } from "@/components/match/school-notion-cover";
 import { ProgramCard } from "@/components/match/program-card";
 import { useQuestionnaire, useMatchResult } from "@/hooks/use-questionnaire";
 import { generateMatchResult } from "@/lib/mock-match";
-import { getProgramIdsWithSavedDrafts } from "@/lib/document-drafts";
-import type { School } from "@/lib/types";
+import type { QuestionnaireData, School } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type CategoryFilter = "all" | "reach" | "match" | "safety";
+
+const CATEGORY_ITEMS: { id: CategoryFilter; label: string; index: string }[] = [
+  { id: "all", label: "全部", index: "01" },
+  { id: "reach", label: "冲刺", index: "02" },
+  { id: "match", label: "主申", index: "03" },
+  { id: "safety", label: "保底", index: "04" },
+];
+
+interface AnalysisStep {
+  title: string;
+  details: string;
+}
+
+function buildAnalysisSteps(data: QuestionnaireData): AnalysisStep[] {
+  const personal = data.personalInfo;
+  const countries = personal.targetCountry.length > 0
+    ? personal.targetCountry.join(" / ")
+    : "未明确目标国家";
+  const major = personal.intendedMajor || personal.intendedApplicationField || "未明确目标方向";
+  const budget = personal.budgetEstimate || "未填写预算";
+  const duration = personal.plannedStudyDuration || "学制偏好未填写";
+  const eduTop = data.education[0];
+  const eduSummary = eduTop
+    ? `${eduTop.school || "院校未填写"} · ${eduTop.major || "专业未填写"} · GPA ${eduTop.gpa || "未填写"}`
+    : "未填写教育经历";
+
+  return [
+    {
+      title: "读取个人目标画像",
+      details: `目标国家/地区：${countries}；申请方向：${major}；入学时间：${personal.targetSemester || "未填写"}`,
+    },
+    {
+      title: "解析学术背景强度",
+      details: `教育经历 ${data.education.length} 段；核心背景：${eduSummary}`,
+    },
+    {
+      title: "提取竞争力与亮点",
+      details: `工作 ${data.workExperience.length} 段，项目 ${data.projects.length} 个，奖项 ${data.honors.length} 项，技能 ${data.skills.length} 项`,
+    },
+    {
+      title: "校准申请偏好约束",
+      details: `预算：${budget}；期望学制：${duration}；经费偏好：${personal.fundingIntent || "未填写"}`,
+    },
+    {
+      title: "生成院校分档与项目清单",
+      details: "综合冲刺 / 主申 / 保底梯度，输出匹配学校与项目建议",
+    },
+  ];
+}
 
 export default function MatchPage() {
   const { data: questionnaireData, isLoaded: isQuestionnaireLoaded } = useQuestionnaire();
   const { result, isLoaded: isResultLoaded, saveResult } = useMatchResult();
-  
+
   const [isGenerating, setIsGenerating] = useState(false);
+  const [analysisSteps, setAnalysisSteps] = useState<AnalysisStep[]>([]);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [addedPrograms, setAddedPrograms] = useState<string[]>([]);
-  const [draftRefresh, setDraftRefresh] = useState(0);
+  const generationTimersRef = useRef<number[]>([]);
 
-  // 生成匹配结果
+  const clearGenerationTimers = useCallback(() => {
+    generationTimersRef.current.forEach((id) => window.clearTimeout(id));
+    generationTimersRef.current = [];
+  }, []);
+
+  const runGeneration = useCallback(() => {
+    clearGenerationTimers();
+    const steps = buildAnalysisSteps(questionnaireData);
+    const stepDuration = 850;
+    setAnalysisSteps(steps);
+    setActiveStepIndex(0);
+    setIsGenerating(true);
+
+    steps.forEach((_, index) => {
+      const timerId = window.setTimeout(() => {
+        setActiveStepIndex(index);
+      }, index * stepDuration);
+      generationTimersRef.current.push(timerId);
+    });
+
+    const finishTimerId = window.setTimeout(() => {
+      const newResult = generateMatchResult(questionnaireData);
+      saveResult(newResult);
+      setIsGenerating(false);
+    }, steps.length * stepDuration + 300);
+    generationTimersRef.current.push(finishTimerId);
+  }, [clearGenerationTimers, questionnaireData, saveResult]);
+
   useEffect(() => {
     if (isQuestionnaireLoaded && isResultLoaded && !result) {
-      setIsGenerating(true);
-      // 模拟 AI 生成延迟
-      setTimeout(() => {
-        const newResult = generateMatchResult(questionnaireData);
-        saveResult(newResult);
-        setIsGenerating(false);
-      }, 2000);
+      runGeneration();
     }
-  }, [isQuestionnaireLoaded, isResultLoaded, result, questionnaireData, saveResult]);
-  
-  // 从本地存储加载已添加的项目
+  }, [isQuestionnaireLoaded, isResultLoaded, result, runGeneration]);
+
+  useEffect(() => {
+    return () => {
+      clearGenerationTimers();
+    };
+  }, [clearGenerationTimers]);
+
   useEffect(() => {
     const stored = localStorage.getItem("edumatch_added_programs");
     if (stored) {
@@ -46,38 +125,12 @@ export default function MatchPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const bump = () => setDraftRefresh((n) => n + 1);
-    window.addEventListener("focus", bump);
-    document.addEventListener("visibilitychange", bump);
-    return () => {
-      window.removeEventListener("focus", bump);
-      document.removeEventListener("visibilitychange", bump);
-    };
-  }, []);
-
-  const draftProgramIds = useMemo(() => {
-    void draftRefresh;
-    return getProgramIdsWithSavedDrafts();
-  }, [draftRefresh, addedPrograms.join(",")]);
-
-  const draftCountBySchoolId = useMemo(() => {
-    if (!result) return new Map<string, number>();
-    const map = new Map<string, number>();
-    for (const p of result.programs) {
-      if (draftProgramIds.has(p.id)) {
-        map.set(p.schoolId, (map.get(p.schoolId) ?? 0) + 1);
-      }
-    }
-    return map;
-  }, [result, draftProgramIds]);
-
   const handleAddProgram = (programId: string) => {
     const updated = [...addedPrograms, programId];
     setAddedPrograms(updated);
     localStorage.setItem("edumatch_added_programs", JSON.stringify(updated));
   };
-  
+
   const handleRemoveProgram = (programId: string) => {
     const updated = addedPrograms.filter((id) => id !== programId);
     setAddedPrograms(updated);
@@ -97,29 +150,33 @@ export default function MatchPage() {
   };
 
   const handleRegenerate = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      const newResult = generateMatchResult(questionnaireData);
-      saveResult(newResult);
-      setIsGenerating(false);
-    }, 2000);
+    runGeneration();
   };
-  
-  // 筛选后的学校和项目
+
   const filteredSchools = useMemo(() => {
     if (!result) return [];
     if (categoryFilter === "all") return result.schools;
     return result.schools.filter((s) => s.category === categoryFilter);
   }, [result, categoryFilter]);
-  
+
+  const categoryCounts = useMemo(() => {
+    if (!result) return { all: 0, reach: 0, match: 0, safety: 0 };
+    return {
+      all: result.schools.length,
+      reach: result.schools.filter((s) => s.category === "reach").length,
+      match: result.schools.filter((s) => s.category === "match").length,
+      safety: result.schools.filter((s) => s.category === "safety").length,
+    };
+  }, [result]);
+
   const filteredPrograms = useMemo(() => {
     if (!result) return [];
     let programs = result.programs;
-    
+
     if (categoryFilter !== "all") {
       programs = programs.filter((p) => p.category === categoryFilter);
     }
-    
+
     if (selectedSchool) {
       programs = programs.filter((p) => p.schoolId === selectedSchool.id);
     }
@@ -130,187 +187,276 @@ export default function MatchPage() {
       return schoolA - schoolB;
     });
   }, [result, categoryFilter, selectedSchool]);
-  
+
   if (!isQuestionnaireLoaded || !isResultLoaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
       </div>
     );
   }
-  
+
   if (isGenerating) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
         <GuestBanner />
-        <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-          <div className="relative mb-8">
-            <div className="h-24 w-24 rounded-full border-4 border-primary/20 animate-pulse" />
-            <Sparkles className="absolute inset-0 m-auto h-10 w-10 text-primary animate-bounce" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">正在匹配</h1>
-          <p className="text-muted-foreground text-center">
-            请稍候...
+        <div className="flex flex-col items-center justify-center min-h-[80vh] px-6">
+          <div className="mb-8 h-6 w-6 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">正在分析并生成匹配方案</h1>
+          <p className="mt-2 max-w-xl text-center text-sm text-muted-foreground leading-relaxed">
+            系统将基于你在问卷中的填写信息，分步骤解析背景并生成院校与项目建议
           </p>
+          <div className="mt-6 w-full max-w-2xl rounded-xl border border-border/80 bg-card/80 p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>分析进度</span>
+              <span className="tabular-nums">
+                {Math.min(activeStepIndex + 1, Math.max(analysisSteps.length, 1))}/{Math.max(analysisSteps.length, 1)}
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {analysisSteps.map((step, index) => {
+                const isDone = index < activeStepIndex;
+                const isActive = index === activeStepIndex;
+                return (
+                  <div
+                    key={step.title}
+                    className={cn(
+                      "rounded-lg border px-3 py-2.5 transition-colors",
+                      isActive
+                        ? "border-foreground/40 bg-foreground/[0.06]"
+                        : isDone
+                          ? "border-border/70 bg-muted/25"
+                          : "border-border/50 bg-background/70"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-medium",
+                          isActive
+                            ? "bg-foreground text-background"
+                            : isDone
+                              ? "bg-muted text-foreground"
+                              : "bg-muted/70 text-muted-foreground"
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <p className="text-sm font-medium text-foreground">{step.title}</p>
+                    </div>
+                    <p className="mt-1.5 pl-7 text-xs leading-relaxed text-muted-foreground">{step.details}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
-  
+
   return (
-    <div className="flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
       <GuestBanner />
-      
-      {/* Header */}
-      <header className="sticky top-8 z-40 shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:static lg:top-auto">
-        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-              <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
-            </div>
-            <span className="hidden truncate font-semibold text-foreground sm:inline">EduMatch</span>
+
+      <header className="sticky top-8 z-40 border-b border-border bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">
+            EduMatch
           </Link>
-          
-          <div className="flex shrink-0 items-center gap-2">
-            <Link href="/questionnaire">
-              <Button variant="outline" size="icon" className="h-8 w-8" aria-label="返回问卷" title="返回问卷">
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
-            </Link>
-            <Link href="/workspace">
-              <Button size="sm" className="h-8 px-3 text-xs">
-                工作台
-                <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
-              </Button>
-            </Link>
+
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="重新匹配"
+                  onClick={handleRegenerate}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">重新匹配</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/questionnaire">
+                  <Button variant="outline" size="icon" className="h-8 w-8" aria-label="返回问卷">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">返回问卷</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/workspace">
+                  <Button size="icon" className="h-8 w-8" aria-label="工作台">
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">工作台</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
-      
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 px-4 py-2 sm:px-6 lg:min-h-0 lg:overflow-hidden lg:pb-3 lg:pt-1">
-        {/* 统计 + 筛选 + 重匹配：同一视觉层级 */}
-        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Tabs value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as CategoryFilter)}>
-              <TabsList className="h-8 gap-0 p-0.5">
-                <TabsTrigger value="all" className="h-7 px-2.5 text-xs">
-                  全部
-                </TabsTrigger>
-                <TabsTrigger value="reach" className="h-7 px-2.5 text-xs">
-                  冲刺
-                </TabsTrigger>
-                <TabsTrigger value="match" className="h-7 px-2.5 text-xs">
-                  主申
-                </TabsTrigger>
-                <TabsTrigger value="safety" className="h-7 px-2.5 text-xs">
-                  保底
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleRegenerate}
-              aria-label="重匹配"
-              title="重匹配"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-        
-        {/* 主内容区：大屏占满视口剩余高度，左右各自滚动 */}
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,260px)_1fr] lg:gap-4">
-          {/* 学校列表 */}
-          <aside className="flex min-h-0 flex-col lg:min-h-0">
-            <div className="min-h-[40vh] flex-1 space-y-1.5 overflow-y-auto pr-1 lg:min-h-0">
-              <button
-                type="button"
-                onClick={() => setSelectedSchool(null)}
-                aria-label={`全部学校项目，共 ${filteredPrograms.length} 项`}
-                className={`flex w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-sm shadow-sm transition-[box-shadow,border-color] duration-200 ${
-                  !selectedSchool
-                    ? "border-primary/35 bg-muted/30 shadow-md ring-1 ring-primary/10"
-                    : "border-border/80 hover:border-border hover:shadow-md"
-                }`}
-              >
-                <LayoutGrid className="h-4 w-4 shrink-0 text-foreground/55" aria-hidden />
-                <span className="tabular-nums text-sm font-semibold text-foreground">
-                  {filteredPrograms.length}
-                </span>
-              </button>
-              
-              {filteredSchools.map((school) => {
-                const schoolPrograms = result?.programs.filter((p) => p.schoolId === school.id) ?? [];
-                const programCount = schoolPrograms.length;
 
-                return (
-                  <SchoolCard
-                    key={school.id}
-                    school={school}
-                    programCount={programCount}
-                    schoolProgramIds={schoolPrograms.map((p) => p.id)}
-                    addedProgramIds={addedPrograms}
-                    onToggleSchoolPrograms={() => handleToggleSchoolPrograms(school.id)}
-                    draftProgramCount={draftCountBySchoolId.get(school.id) ?? 0}
-                    onSelect={() => setSelectedSchool(school)}
-                    isSelected={selectedSchool?.id === school.id}
-                  />
-                );
-              })}
+      <main
+        className={cn(
+          "mx-auto max-w-6xl px-6 py-8",
+          addedPrograms.length > 0 && "pb-24"
+        )}
+      >
+        <div className="grid gap-6 lg:grid-cols-[minmax(288px,320px)_1fr]">
+          <aside className="space-y-4 lg:sticky lg:top-24 lg:h-fit">
+            <div className="rounded-xl border border-border/80 bg-card/95 p-2.5">
+              <p className="mb-1.5 px-2 text-xs text-muted-foreground">分档筛选</p>
+              <div className="space-y-0.5">
+                {CATEGORY_ITEMS.map(({ id, label, index }) => {
+                  const active = categoryFilter === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setCategoryFilter(id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors",
+                        active
+                          ? "border-foreground bg-background text-foreground"
+                          : "border-transparent text-muted-foreground/80 hover:border-border/80 hover:bg-muted/40"
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "w-7 text-xs tabular-nums",
+                            active ? "text-foreground/80" : "text-muted-foreground/70"
+                          )}
+                        >
+                          {index}
+                        </span>
+                        <span className={active ? "font-medium" : "font-normal"}>{label}</span>
+                      </span>
+                      <span
+                        className={cn(
+                          "tabular-nums text-xs",
+                          active ? "text-foreground/75" : "text-muted-foreground"
+                        )}
+                      >
+                        {categoryCounts[id]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="hide-scrollbar rounded-xl border border-border/80 bg-card/95 p-3.5 lg:max-h-[min(65vh,560px)] lg:overflow-y-auto">
+              <p className="mb-3 px-1 text-xs font-medium text-muted-foreground">院校</p>
+              <div className="space-y-2">
+                {filteredSchools.map((school) => {
+                  const schoolPrograms = result?.programs.filter((p) => p.schoolId === school.id) ?? [];
+                  const programCount = schoolPrograms.length;
+
+                  return (
+                    <SchoolCard
+                      key={school.id}
+                      school={school}
+                      programCount={programCount}
+                      schoolProgramIds={schoolPrograms.map((p) => p.id)}
+                      addedProgramIds={addedPrograms}
+                      onToggleSchoolPrograms={() => handleToggleSchoolPrograms(school.id)}
+                      onSelect={() => setSelectedSchool(school)}
+                      isSelected={selectedSchool?.id === school.id}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </aside>
-          
-          {/* 项目列表 */}
-          <section className="flex min-h-0 flex-col lg:min-h-0">
-            <div
-              className={`min-h-[40vh] flex-1 space-y-2 overflow-y-auto lg:min-h-0 ${addedPrograms.length > 0 ? "pb-14" : ""}`}
-            >
-              {filteredPrograms.map((program) => {
-                const school = result?.schools.find((s) => s.id === program.schoolId);
-                if (!school) return null;
-                
-                return (
-                  <ProgramCard
-                    key={program.id}
-                    program={program}
-                    school={school}
-                    showSchoolInHeader={!selectedSchool}
-                    isAdded={addedPrograms.includes(program.id)}
-                    hasDocumentDraft={draftProgramIds.has(program.id)}
-                    onAdd={() => handleAddProgram(program.id)}
-                    onRemove={() => handleRemoveProgram(program.id)}
-                  />
-                );
-              })}
-              
-              {filteredPrograms.length === 0 && (
-                <div className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-                  暂无项目
-                </div>
+
+          <div className="min-h-[min(70vh,520px)] pr-1">
+            <section className="overflow-hidden rounded-xl border border-border/80 bg-card/95">
+              <div className="flex items-center gap-3 border-b border-border px-6 py-4 sm:px-8 sm:py-5">
+                <h2 className="text-lg font-semibold text-foreground">匹配项目</h2>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                  {filteredPrograms.length}
+                </span>
+                {selectedSchool && (
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    当前院校：{selectedSchool.nameEn}
+                  </span>
+                )}
+              </div>
+
+              {selectedSchool && (
+                <>
+                  <SchoolNotionCover school={selectedSchool} />
+                  {(selectedSchool.campusStyle ||
+                    selectedSchool.locationAndSetting ||
+                    selectedSchool.studentLife) && (
+                    <div className="border-b border-border/80 bg-muted/[0.18] px-6 py-5 sm:px-8">
+                      <p className="mb-3 text-xs font-medium text-muted-foreground">院校介绍</p>
+                      <SchoolRichInfo school={selectedSchool} />
+                    </div>
+                  )}
+                </>
               )}
-            </div>
-          </section>
-        </div>
-        
-        {/* 底部操作栏 */}
-        {addedPrograms.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur p-4 z-50">
-            <div className="mx-auto max-w-7xl flex items-center justify-between">
-              <p className="text-sm tabular-nums text-muted-foreground">
-                已选 <span className="font-medium text-foreground">{addedPrograms.length}</span>
-              </p>
-              <Link href="/workspace">
-                <Button>
-                  去工作台
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
+
+              <div className="space-y-3 p-6 sm:p-8">
+                {filteredPrograms.map((program) => {
+                  const school = result?.schools.find((s) => s.id === program.schoolId);
+                  if (!school) return null;
+
+                  return (
+                    <ProgramCard
+                      key={program.id}
+                      program={program}
+                      school={school}
+                      showSchoolInHeader={!selectedSchool}
+                      isAdded={addedPrograms.includes(program.id)}
+                      onAdd={() => handleAddProgram(program.id)}
+                      onRemove={() => handleRemoveProgram(program.id)}
+                    />
+                  );
+                })}
+
+                {filteredPrograms.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-border/80 bg-muted/[0.18] py-12 text-center text-sm text-muted-foreground">
+                    当前筛选下暂无项目，试试切换分档或学校
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
-        )}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground/70">结果基于本地问卷数据生成</p>
       </main>
+
+      {addedPrograms.length > 0 && (
+        <div className="sticky bottom-0 z-30 border-t border-border bg-background/85 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
+            <p className="text-sm tabular-nums text-muted-foreground">
+              已选 <span className="font-medium text-foreground">{addedPrograms.length}</span>
+            </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/workspace">
+                  <Button size="icon" className="h-10 w-10 shrink-0" aria-label="去工作台">
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="top">去工作台</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

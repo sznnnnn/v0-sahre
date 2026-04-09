@@ -1,27 +1,39 @@
 // 用户问卷数据类型
 export interface PersonalInfo {
   fullName: string;
+  /** 地区代码；含特殊值 "undecided" 表示尚未确定（匹配时不按国家筛选） */
   targetCountry: string[];
   /** 目标申请项目/专业（展示以英文名为准） */
   intendedMajor: string;
-  /** 本科阶段专业 */
-  undergraduateMajor: string;
   /** 希望申请的领域（如 CS / DS / 金融 等，可与目标专业互补） */
   intendedApplicationField: string;
   /** 留学预算（自由填写，如 50万/年、$80k） */
   budgetEstimate: string;
   /** 期望项目学制（如 1年、1.5年、2年、不限） */
   plannedStudyDuration: string;
-  targetDegree: "bachelor" | "master" | "phd" | "";
   targetSemester: string;
+  /** 未来规划（拓展，可选，自由文本） */
+  futurePlan: string;
+  /** 经费来源意向 */
+  fundingIntent: "" | "self" | "scholarship" | "mixed";
+  /** 授课语言偏好 */
+  teachingLanguagePref: "" | "english" | "bilingual_ok" | "any";
+  /** 研究兴趣补充说明 */
+  researchInterestNote: string;
+  /** 留学动机 / 一句话目标 */
+  motivationNote: string;
+  /** 其他与申请相关的补充说明（自由填写） */
+  otherApplicationNotes: string;
+  /** 已有目标院校时直接填写（多校可换行或顿号分隔，中英校名均可） */
+  knownTargetSchools: string;
 }
 
 export interface Education {
   school: string;
   degree: string;
   major: string;
+  /** 成绩自由填写，如 3.8/4.0、百分制 88、均分 85 */
   gpa: string;
-  gpaScale: "4.0" | "5.0" | "100" | "";
   startDate: string;
   endDate: string;
   achievements?: string;
@@ -109,6 +121,16 @@ export interface School {
   ranking: number;
   logo?: string;
   category: "reach" | "match" | "safety"; // 冲刺 | 主申 | 保底
+  /** 校园气质、学术传统与培养特色（展示用文案） */
+  campusStyle?: string;
+  /** 地理位置、城市环境、气候与交通便利等 */
+  locationAndSetting?: string;
+  /** 住宿、生活成本、国际生社群与课余节奏等 */
+  studentLife?: string;
+  /** 主校区近似纬度（地图标点） */
+  lat?: number;
+  /** 主校区近似经度（地图标点） */
+  lng?: number;
 }
 
 export interface Program {
@@ -143,12 +165,17 @@ export const initialQuestionnaireData: QuestionnaireData = {
     fullName: "",
     targetCountry: [],
     intendedMajor: "",
-    undergraduateMajor: "",
     intendedApplicationField: "",
     budgetEstimate: "",
     plannedStudyDuration: "",
-    targetDegree: "",
     targetSemester: "",
+    futurePlan: "",
+    fundingIntent: "",
+    teachingLanguagePref: "",
+    researchInterestNote: "",
+    motivationNote: "",
+    otherApplicationNotes: "",
+    knownTargetSchools: "",
   },
   education: [],
   tests: {},

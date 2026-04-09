@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Paperclip, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Paperclip, X } from "lucide-react";
 import { GuestBanner } from "@/components/questionnaire/guest-banner";
 import { FileUpload } from "@/components/questionnaire/file-upload";
 import { PersonalInfoForm } from "@/components/questionnaire/steps/personal-info";
@@ -14,17 +14,25 @@ import { WorkExperienceForm } from "@/components/questionnaire/steps/work-experi
 import { ProjectExperienceForm } from "@/components/questionnaire/steps/project-experience";
 import { HonorsForm } from "@/components/questionnaire/steps/honors";
 import { SkillsForm } from "@/components/questionnaire/steps/skills";
+import { ExtensionQuestionsForm } from "@/components/questionnaire/steps/extension-questions";
 import { useQuestionnaire } from "@/hooks/use-questionnaire";
 import type { QuestionnaireData } from "@/lib/types";
+import {
+  getSampleQuestionnaireDemoPayload,
+  SAMPLE_QUESTIONNAIRE_DEMO_NOTE,
+} from "@/lib/sample-questionnaire-demo";
+import {
+  getSampleQuestionnaireXinLiuPayload,
+  SAMPLE_QUESTIONNAIRE_XIN_LIU_NOTE,
+} from "@/lib/sample-questionnaire-xin-liu";
 
 export default function QuestionnairePage() {
   const router = useRouter();
   const { data, isLoaded, saveData, setCurrentStep } = useQuestionnaire();
-  const sectionRefs = useRef<Record<number, HTMLElement | null>>({});
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
   const currentStep = data.currentStep;
-  const progress = Math.round((currentStep / 7) * 100);
+  const totalSteps = 8;
+  const progress = Math.round((currentStep / totalSteps) * 100);
 
   const steps = useMemo(
     () => [
@@ -35,44 +43,18 @@ export default function QuestionnairePage() {
       { number: 5, title: "项目经历", required: false },
       { number: 6, title: "荣誉奖项", required: false },
       { number: 7, title: "技能", required: false },
+      { number: 8, title: "拓展问题", required: false },
     ],
     []
   );
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const topEntry = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-
-        if (!topEntry) return;
-        const stepValue = Number(topEntry.target.getAttribute("data-step"));
-        if (!Number.isNaN(stepValue) && stepValue !== currentStep) {
-          setCurrentStep(stepValue);
-        }
-      },
-      { root: container, threshold: [0.25, 0.5, 0.75] }
-    );
-
-    steps.forEach((step) => {
-      const el = sectionRefs.current[step.number];
-      if (el) observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [currentStep, setCurrentStep, steps]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   const handleStepClick = useCallback(
     (step: number) => {
       setCurrentStep(step);
-      const section = sectionRefs.current[step];
-      if (section) {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
     },
     [setCurrentStep]
   );
@@ -89,17 +71,84 @@ export default function QuestionnairePage() {
   );
 
   const handleNextStep = useCallback(() => {
-    if (currentStep < 7) {
-      const nextStep = currentStep + 1;
-      setCurrentStep(nextStep);
-      const section = sectionRefs.current[nextStep];
-      if (section) {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
       return;
     }
     router.push("/match");
-  }, [currentStep, router, setCurrentStep]);
+  }, [currentStep, router, setCurrentStep, totalSteps]);
+
+  const handlePrevStep = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  }, [currentStep, setCurrentStep]);
+
+  const handleLoadXinLiuSample = useCallback(() => {
+    if (
+      !confirm(
+        "将载入示例 A「刘欣 / 华科产品设计」：覆盖个人信息、教育、工作、项目、荣誉与技能（标化为空）；已上传附件会保留。确定？"
+      )
+    ) {
+      return;
+    }
+    saveData({
+      ...getSampleQuestionnaireXinLiuPayload(),
+      completedSteps: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
+  }, [saveData]);
+
+  const handleLoadDemoSample = useCallback(() => {
+    if (
+      !confirm(
+        "将载入示例 B「林予安 / 南科大电子工程」：覆盖个人信息、教育、标化、工作、项目、荣誉与技能；已上传附件会保留。确定？"
+      )
+    ) {
+      return;
+    }
+    saveData({
+      ...getSampleQuestionnaireDemoPayload(),
+      completedSteps: [1, 2, 3, 4, 5, 6, 7, 8],
+    });
+  }, [saveData]);
+
+  const stepForm = useMemo(() => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <PersonalInfoForm
+            data={data.personalInfo}
+            onChange={(personalInfo) => updateData("personalInfo", personalInfo)}
+          />
+        );
+      case 2:
+        return <EducationForm data={data.education} onChange={(education) => updateData("education", education)} />;
+      case 3:
+        return <StandardizedTestsForm data={data.tests} onChange={(tests) => updateData("tests", tests)} />;
+      case 4:
+        return (
+          <WorkExperienceForm
+            data={data.workExperience}
+            onChange={(workExperience) => updateData("workExperience", workExperience)}
+          />
+        );
+      case 5:
+        return <ProjectExperienceForm data={data.projects} onChange={(projects) => updateData("projects", projects)} />;
+      case 6:
+        return <HonorsForm data={data.honors} onChange={(honors) => updateData("honors", honors)} />;
+      case 7:
+        return <SkillsForm data={data.skills} onChange={(skills) => updateData("skills", skills)} />;
+      case 8:
+        return (
+          <ExtensionQuestionsForm
+            data={data.personalInfo}
+            onChange={(personalInfo) => updateData("personalInfo", personalInfo)}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [currentStep, data, updateData]);
 
   if (!isLoaded) {
     return (
@@ -164,18 +213,6 @@ export default function QuestionnairePage() {
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="lg:sticky lg:top-24 lg:h-fit">
             <div className="rounded-xl border border-border/80 bg-card/90 p-3">
-              <div className="mb-3 px-2">
-                <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>进度</span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-foreground/80 transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
               <div className="space-y-1">
                 {steps.map((step) => {
                   const isCurrent = currentStep === step.number;
@@ -196,86 +233,51 @@ export default function QuestionnairePage() {
                   );
                 })}
               </div>
+              <div className="mt-3 border-t border-border/60 px-2 pt-3">
+                <p className="mb-2 text-[10px] font-medium text-foreground/80">演示用两套完整示例</p>
+                <p className="mb-1.5 text-[10px] leading-relaxed text-muted-foreground">{SAMPLE_QUESTIONNAIRE_XIN_LIU_NOTE}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mb-2 h-8 w-full text-xs font-normal"
+                  onClick={handleLoadXinLiuSample}
+                >
+                  载入示例 A · 设计/HCI
+                </Button>
+                <p className="mb-1.5 text-[10px] leading-relaxed text-muted-foreground">{SAMPLE_QUESTIONNAIRE_DEMO_NOTE}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-full text-xs font-normal"
+                  onClick={handleLoadDemoSample}
+                >
+                  载入示例 B · 电子/嵌入式
+                </Button>
+              </div>
+              <div className="mt-3 border-t border-border/60 px-2 pt-3">
+                <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>进度</span>
+                  <span>{progress}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-foreground/80 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
             </div>
           </aside>
 
-          <div ref={scrollContainerRef} className="h-[calc(100vh-170px)] space-y-6 overflow-y-auto pr-1">
+          <div className="min-h-[min(70vh,520px)] pr-1">
             <section
-              ref={(el) => {
-                sectionRefs.current[1] = el;
-              }}
-              data-step={1}
+              key={currentStep}
               className="rounded-xl border border-border/80 bg-card/95 p-8"
             >
-              <PersonalInfoForm
-                data={data.personalInfo}
-                onChange={(personalInfo) => updateData("personalInfo", personalInfo)}
-              />
+              {stepForm}
             </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[2] = el;
-              }}
-              data-step={2}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <EducationForm data={data.education} onChange={(education) => updateData("education", education)} />
-            </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[3] = el;
-              }}
-              data-step={3}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <StandardizedTestsForm data={data.tests} onChange={(tests) => updateData("tests", tests)} />
-            </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[4] = el;
-              }}
-              data-step={4}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <WorkExperienceForm
-                data={data.workExperience}
-                onChange={(workExperience) => updateData("workExperience", workExperience)}
-              />
-            </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[5] = el;
-              }}
-              data-step={5}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <ProjectExperienceForm data={data.projects} onChange={(projects) => updateData("projects", projects)} />
-            </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[6] = el;
-              }}
-              data-step={6}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <HonorsForm data={data.honors} onChange={(honors) => updateData("honors", honors)} />
-            </section>
-
-            <section
-              ref={(el) => {
-                sectionRefs.current[7] = el;
-              }}
-              data-step={7}
-              className="rounded-xl border border-border/80 bg-card/95 p-8"
-            >
-              <SkillsForm data={data.skills} onChange={(skills) => updateData("skills", skills)} />
-            </section>
-
           </div>
         </div>
 
@@ -283,13 +285,23 @@ export default function QuestionnairePage() {
       </main>
 
       <div className="sticky bottom-0 z-30 border-t border-border bg-background/85 px-6 py-3 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl justify-end">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
           <Button
+            type="button"
+            variant="ghost"
+            onClick={handlePrevStep}
+            disabled={currentStep <= 1}
+            className="h-10 min-w-28 text-muted-foreground"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            上一步
+          </Button>
+          <Button
+            type="button"
             onClick={handleNextStep}
-            disabled={false}
             className="h-10 min-w-32"
           >
-            {currentStep === 7 ? "完成" : "下一步"}
+            {currentStep === totalSteps ? "完成" : "下一步"}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

@@ -16,6 +16,7 @@ const steps: Step[] = [
   { number: 5, title: "项目经历", required: false },
   { number: 6, title: "荣誉奖项", required: false },
   { number: 7, title: "技能", required: false },
+  { number: 8, title: "拓展问题", required: false },
 ];
 
 interface StepIndicatorProps {

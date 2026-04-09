@@ -1,8 +1,10 @@
 "use client";
 
-import { Trophy, LayoutList, FileText, MapPin, Plus, Check } from "lucide-react";
+import { Trophy, LayoutList, MapPin, Plus, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SchoolLogoMark } from "@/components/match/school-logo-mark";
 import { cn } from "@/lib/utils";
 import type { School } from "@/lib/types";
 
@@ -15,13 +17,9 @@ const categoryCn: Record<School["category"], string> = {
 interface SchoolCardProps {
   school: School;
   programCount: number;
-  /** 该校在当前匹配结果中的项目 id（用于一键加/退院校） */
   schoolProgramIds: string[];
   addedProgramIds: string[];
-  /** 加入或移除该校全部匹配项目 */
   onToggleSchoolPrograms: () => void;
-  /** 该校下已有文书草稿的项目数量 */
-  draftProgramCount?: number;
   onSelect: () => void;
   isSelected?: boolean;
 }
@@ -32,80 +30,79 @@ export function SchoolCard({
   schoolProgramIds,
   addedProgramIds,
   onToggleSchoolPrograms,
-  draftProgramCount = 0,
   onSelect,
   isSelected,
 }: SchoolCardProps) {
-  const schoolInitial = school.nameEn?.[0]?.toUpperCase() || school.name?.[0] || "U";
   const hasPrograms = schoolProgramIds.length > 0;
   const allProgramsAdded =
     hasPrograms && schoolProgramIds.every((id) => addedProgramIds.includes(id));
   const someProgramsAdded = schoolProgramIds.some((id) => addedProgramIds.includes(id));
+  const inv = isSelected;
+  const bulkProgramsLabel = allProgramsAdded
+    ? "从申请单移除此校全部项目"
+    : someProgramsAdded
+      ? "补全该校其余项目到申请单"
+      : "将该校全部匹配项目加入申请单";
 
   return (
     <div
       className={cn(
-        "flex overflow-hidden rounded-xl border bg-card text-sm shadow-sm transition-[box-shadow,border-color] duration-200",
-        isSelected
-          ? "border-primary/40 bg-muted/30 shadow-md ring-1 ring-primary/10"
-          : "border-border/80 hover:border-border hover:shadow-md"
+        "flex min-h-[5.25rem] overflow-hidden rounded-lg border transition-colors",
+        inv
+          ? "border-foreground bg-background text-foreground"
+          : "border-border/80 bg-card/95 hover:border-border hover:bg-muted/25"
       )}
     >
       <button
         type="button"
         onClick={onSelect}
         aria-label={`${school.nameEn}，${school.name}，${school.city}，${school.country}，排名 ${school.ranking}，${programCount} 个项目`}
-        className="min-w-0 flex-1 px-2.5 py-2.5 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
+        className="min-w-0 flex-1 px-3.5 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        <div className="flex items-start gap-2.5" aria-hidden={true}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/80 bg-muted/60 shadow-inner">
-            {school.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={school.logo} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs font-semibold text-foreground/80">{schoolInitial}</span>
-            )}
-          </div>
+        <div className="flex items-start gap-3.5" aria-hidden={true}>
+          <SchoolLogoMark school={school} size="lg" inverted={inv} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold leading-tight tracking-tight text-foreground">{school.nameEn}</p>
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{school.name}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-foreground/45" aria-hidden />
-                <span className="truncate text-foreground/85">
+            <p
+              className={cn(
+                "text-[15px] font-semibold leading-snug tracking-tight",
+                inv ? "text-foreground" : "text-foreground"
+              )}
+            >
+              {school.nameEn}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <MapPin className={cn("h-4 w-4 shrink-0", inv ? "text-muted-foreground" : "text-muted-foreground")} aria-hidden />
+                <span className={cn("line-clamp-1 min-w-0", inv ? "text-foreground/90" : "text-foreground/85")}>
                   {school.city} · {school.country}
                 </span>
               </span>
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal text-muted-foreground">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-6 shrink-0 border px-2 py-0 text-[11px] font-normal leading-none",
+                  inv
+                    ? "border-foreground/30 bg-muted/20 text-foreground/90"
+                    : "border-border/80 text-muted-foreground"
+                )}
+              >
                 {categoryCn[school.category]}
               </Badge>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1 tabular-nums" title="综合排名参考">
-                <Trophy className="h-3.5 w-3.5 shrink-0 text-foreground/45" />
-                <span className="text-foreground/80">{school.ranking}</span>
+            <div className={cn("mt-2 flex flex-wrap items-center gap-2.5 text-xs", inv ? "text-muted-foreground" : "text-muted-foreground")}>
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
+                <Trophy className={cn("h-4 w-4 shrink-0", inv ? "text-muted-foreground" : "text-muted-foreground")} />
+                <span className={inv ? "text-foreground" : "text-foreground/80"}>{school.ranking}</span>
               </span>
-              <span className="h-3 w-px bg-border/80" />
-              <span className="inline-flex items-center gap-1 tabular-nums">
-                <LayoutList className="h-3.5 w-3.5 shrink-0 text-foreground/45" />
-                <span className="text-foreground/80">{programCount}</span>
+              <span className={cn("h-3.5 w-px shrink-0", inv ? "bg-border" : "bg-border/80")} />
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
+                <LayoutList className={cn("h-4 w-4 shrink-0", inv ? "text-muted-foreground" : "text-muted-foreground")} />
+                <span className={inv ? "text-foreground" : "text-foreground/80"}>{programCount}</span>
               </span>
-              {draftProgramCount > 0 && (
-                <>
-                  <span className="h-3 w-px bg-border/80" />
-                  <span
-                    className="inline-flex items-center gap-1 tabular-nums text-foreground/80"
-                    title={`${draftProgramCount} 个项目有文书草稿`}
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-foreground/45" />
-                    {draftProgramCount}
-                  </span>
-                </>
-              )}
               {someProgramsAdded && !allProgramsAdded && (
                 <>
-                  <span className="h-3 w-px bg-border/80" />
-                  <span className="text-foreground/70">部分已加</span>
+                  <span className={cn("h-3.5 w-px shrink-0", inv ? "bg-border" : "bg-border/80")} />
+                  <span className={inv ? "font-medium text-foreground/85" : "font-medium text-foreground/75"}>部分已加</span>
                 </>
               )}
             </div>
@@ -113,33 +110,39 @@ export function SchoolCard({
         </div>
       </button>
 
-      <div className="flex shrink-0 flex-col border-l border-border/60 bg-muted/15 p-1">
-        <Button
-          type="button"
-          variant={allProgramsAdded ? "secondary" : "outline"}
-          size="icon"
-          className="h-8 w-8"
-          disabled={!hasPrograms}
-          title={
-            allProgramsAdded
-              ? "从申请单移除此校全部项目"
-              : someProgramsAdded
-                ? "补全该校其余项目到申请单"
-                : "将该校全部匹配项目加入申请单"
-          }
-          aria-label={
-            allProgramsAdded
-              ? "从申请单移除此校全部项目"
-              : "将该校全部匹配项目加入申请单"
-          }
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleSchoolPrograms();
-          }}
-        >
-          {allProgramsAdded ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-        </Button>
+      <div
+        className={cn(
+          "flex w-12 shrink-0 flex-col items-center justify-center border-l p-1.5",
+          inv ? "border-border/90 bg-muted/20" : "border-border/80 bg-muted/20"
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-9 w-9 rounded-lg",
+                inv && "text-foreground hover:bg-muted/40 hover:text-foreground",
+                allProgramsAdded && !inv && "bg-muted text-foreground",
+                allProgramsAdded && inv && "bg-muted/40 text-foreground"
+              )}
+              disabled={!hasPrograms}
+              aria-label={bulkProgramsLabel}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleSchoolPrograms();
+              }}
+            >
+              {allProgramsAdded ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-[240px]">
+            {bulkProgramsLabel}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

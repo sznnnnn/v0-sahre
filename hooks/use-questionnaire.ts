@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { QuestionnaireData, MatchResult } from "@/lib/types";
 import { initialQuestionnaireData } from "@/lib/types";
+import { enrichSchool } from "@/lib/school-enrichment";
 
 const STORAGE_KEY = "edumatch_questionnaire";
 const MATCH_RESULT_KEY = "edumatch_match_result";
@@ -77,7 +78,6 @@ export function useQuestionnaire() {
   const canGenerateMatch = useCallback(() => {
     const hasPersonalInfo = data.personalInfo.fullName &&
       data.personalInfo.intendedMajor &&
-      data.personalInfo.targetDegree &&
       data.personalInfo.targetSemester &&
       data.personalInfo.targetCountry.length > 0;
     const hasEducation = data.education.length > 0;
@@ -103,7 +103,11 @@ export function useMatchResult() {
     const stored = localStorage.getItem(MATCH_RESULT_KEY);
     if (stored) {
       try {
-        setResult(JSON.parse(stored));
+        const parsed = JSON.parse(stored) as MatchResult;
+        setResult({
+          ...parsed,
+          schools: (parsed.schools ?? []).map((s) => enrichSchool(s)),
+        });
       } catch {
         setResult(null);
       }

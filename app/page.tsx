@@ -132,7 +132,7 @@ export default function HomePage() {
             开始你的留学规划
           </h2>
           <p className="mb-8 text-muted-foreground">
-            7 步完成背景填写，AI 即刻生成个性化推荐
+            8 步完成背景填写，AI 即刻生成个性化推荐
           </p>
           <Link href="/questionnaire">
             <Button size="lg" className="h-11 px-8">
