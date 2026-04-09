@@ -148,7 +148,6 @@ export function WorkExperienceForm({ data, onChange }: WorkExperienceFormProps) 
                     </label>
                     <input
                       type="text"
-                      placeholder="如：字节跳动"
                       value={exp.company}
                       onChange={(e) => updateExperience(index, "company", e.target.value)}
                       className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
@@ -161,7 +160,6 @@ export function WorkExperienceForm({ data, onChange }: WorkExperienceFormProps) 
                     </label>
                     <input
                       type="text"
-                      placeholder="如：产品经理实习生"
                       value={exp.position}
                       onChange={(e) => updateExperience(index, "position", e.target.value)}
                       className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"

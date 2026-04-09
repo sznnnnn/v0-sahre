@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, X, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import type { Skill } from "@/lib/types";
 
 interface SkillsFormProps {
@@ -85,27 +86,77 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
   }, {} as Record<string, Skill[]>);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Wrench className="h-6 w-6 text-foreground" />
-        <h2 className="text-2xl font-semibold text-foreground">技能</h2>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="flex items-center gap-3">
+          <Wrench className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-xl font-semibold text-foreground">技能</h2>
+        </div>
+        {data.length > 0 && <span className="text-xs text-muted-foreground">{data.length} 项</span>}
       </div>
 
+      {/* Added Skills */}
+      {data.length > 0 && (
+        <div className="space-y-4">
+          {Object.entries(groupedSkills).map(([category, skills]) => (
+            <div key={category} className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {skillCategories.find((c) => c.value === category)?.label}
+              </p>
+              <div className="space-y-2">
+                {skills.map((skill) => (
+                  <div
+                    key={skill.id}
+                    className="flex items-center justify-between border-b border-border pb-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-foreground">{skill.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={skill.level}
+                        onValueChange={(value) => updateSkillLevel(skill.id, value as Skill["level"])}
+                      >
+                        <SelectTrigger className="h-8 w-20 text-xs border-0 bg-muted/40 shadow-none">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {skillLevels.map((level) => (
+                            <SelectItem key={level.value} value={level.value}>
+                              {level.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeSkill(skill.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Add Skill Form */}
-      <div className="space-y-4 rounded-lg border border-border p-6">
-        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          添加技能
-        </label>
+      <div className="space-y-3 rounded-lg border border-border p-4">
+        <label className="text-xs text-muted-foreground">添加</label>
         <div className="flex flex-col gap-4 sm:flex-row">
           <div className="flex-1 border-b border-border pb-2">
-            <input
+            <Input
               type="text"
-              placeholder="技能名称，如：Python"
+              placeholder="技能"
               value={newSkill.name || ""}
               onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addSkill()}
-              className="w-full bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+              className="h-auto border-0 bg-transparent px-0 py-0 text-base text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
             />
           </div>
           <Select
@@ -146,8 +197,8 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
 
       {/* Suggested Skills */}
       <div className="space-y-4">
-        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          快速添加常见技能
+        <label className="text-xs text-muted-foreground">
+          推荐
         </label>
         {Object.entries(suggestedSkills).map(([category, skills]) => (
           <div key={category} className="space-y-2">
@@ -161,10 +212,10 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
                   <Badge
                     key={skill}
                     variant={isAdded ? "default" : "outline"}
-                    className={!isAdded ? "cursor-pointer hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300" : ""}
+                    className={!isAdded ? "cursor-pointer hover:bg-muted/50" : ""}
                     onClick={() => !isAdded && addSuggestedSkill(skill, category as Skill["category"])}
                   >
-                    {isAdded ? skill : `+ ${skill}`}
+                    {isAdded ? skill : `+${skill}`}
                   </Badge>
                 );
               })}
@@ -172,60 +223,6 @@ export function SkillsForm({ data, onChange }: SkillsFormProps) {
           </div>
         ))}
       </div>
-
-      {/* Added Skills */}
-      {data.length > 0 && (
-        <div className="space-y-4 pt-4 border-t border-border">
-          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            已添加的技能
-          </label>
-          {Object.entries(groupedSkills).map(([category, skills]) => (
-            <div key={category} className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                {skillCategories.find((c) => c.value === category)?.label}
-              </p>
-              <div className="space-y-2">
-                {skills.map((skill) => (
-                  <div
-                    key={skill.id}
-                    className="flex items-center justify-between border-b border-border pb-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-foreground">{skill.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={skill.level}
-                        onValueChange={(value) => updateSkillLevel(skill.id, value as Skill["level"])}
-                      >
-                        <SelectTrigger className="h-8 w-20 text-xs border-0 bg-muted/50 shadow-none">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {skillLevels.map((level) => (
-                            <SelectItem key={level.value} value={level.value}>
-                              {level.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeSkill(skill.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -1,11 +1,17 @@
 // 用户问卷数据类型
 export interface PersonalInfo {
   fullName: string;
-  email: string;
-  phone: string;
-  nationality: string;
   targetCountry: string[];
+  /** 目标申请项目/专业（展示以英文名为准） */
   intendedMajor: string;
+  /** 本科阶段专业 */
+  undergraduateMajor: string;
+  /** 希望申请的领域（如 CS / DS / 金融 等，可与目标专业互补） */
+  intendedApplicationField: string;
+  /** 留学预算（自由填写，如 50万/年、$80k） */
+  budgetEstimate: string;
+  /** 期望项目学制（如 1年、1.5年、2年、不限） */
+  plannedStudyDuration: string;
   targetDegree: "bachelor" | "master" | "phd" | "";
   targetSemester: string;
 }
@@ -118,6 +124,8 @@ export interface Program {
   tuition: string;
   requirements: string[];
   description: string;
+  /** 课程与培养方向等摘要，用于匹配页展示 */
+  curriculumNote?: string;
   matchScore: number;
   matchReasons: string[];
   category: "reach" | "match" | "safety";
@@ -133,11 +141,12 @@ export interface MatchResult {
 export const initialQuestionnaireData: QuestionnaireData = {
   personalInfo: {
     fullName: "",
-    email: "",
-    phone: "",
-    nationality: "",
     targetCountry: [],
     intendedMajor: "",
+    undergraduateMajor: "",
+    intendedApplicationField: "",
+    budgetEstimate: "",
+    plannedStudyDuration: "",
     targetDegree: "",
     targetSemester: "",
   },

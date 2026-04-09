@@ -16,8 +16,15 @@ export function useQuestionnaire() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored);
-        setData(parsed);
+        const parsed = JSON.parse(stored) as Partial<QuestionnaireData>;
+        setData({
+          ...initialQuestionnaireData,
+          ...parsed,
+          personalInfo: {
+            ...initialQuestionnaireData.personalInfo,
+            ...(parsed.personalInfo ?? {}),
+          },
+        });
       } catch {
         setData(initialQuestionnaireData);
       }
@@ -68,8 +75,10 @@ export function useQuestionnaire() {
 
   // 检查是否可以生成匹配结果（基础信息和项目经历）
   const canGenerateMatch = useCallback(() => {
-    const hasPersonalInfo = data.personalInfo.fullName && 
-      data.personalInfo.email && 
+    const hasPersonalInfo = data.personalInfo.fullName &&
+      data.personalInfo.intendedMajor &&
+      data.personalInfo.targetDegree &&
+      data.personalInfo.targetSemester &&
       data.personalInfo.targetCountry.length > 0;
     const hasEducation = data.education.length > 0;
     return hasPersonalInfo && hasEducation;

@@ -27,8 +27,29 @@ const schoolsDatabase: School[] = [
   { id: "ubc", name: "不列颠哥伦比亚大学", nameEn: "University of British Columbia", country: "加拿大", city: "温哥华", ranking: 34, category: "safety" },
 ];
 
+type ProgramSeed = Omit<Program, "matchScore" | "matchReasons" | "curriculumNote">;
+
+function buildCurriculumNote(p: ProgramSeed): string {
+  if (p.degree === "MBA") {
+    return "核心模块：财务、市场营销、运营管理、战略与领导力；案例教学、小组项目与国际模块。";
+  }
+  if (p.name.includes("金融") || p.id.includes("mfin") || p.id.includes("mfe")) {
+    return "量化方法、衍生品与风险管理、资产定价与金融工程；常含项目或实习学分。";
+  }
+  if (p.name.includes("数据科学") || p.id.endsWith("-ds")) {
+    return "统计学习、机器学习、大数据系统与可视化；毕业设计或行业项目。";
+  }
+  if (p.name.includes("人工智能") || p.id.includes("ai") || p.name.includes("机器学习")) {
+    return "深度学习、概率与统计、NLP/视觉等专题；研究项目与论文环节。";
+  }
+  if (p.name.includes("计算机") || p.id.includes("-cs") || p.name.includes("计算")) {
+    return "算法、计算机系统、软件工程与选修专题；Capstone 或科研训练。";
+  }
+  return `依托 ${p.department} 培养方案：核心课、选修与实践/论文环节，详见当年课程目录。`;
+}
+
 // 模拟项目数据库
-const programsDatabase: Omit<Program, "matchScore" | "matchReasons">[] = [
+const programsDatabaseRaw: ProgramSeed[] = [
   // CS 项目
   { id: "mit-cs", schoolId: "mit", name: "计算机科学硕士", nameEn: "Master of Computer Science", degree: "MS", department: "EECS", duration: "2年", deadline: "2025-12-15", applicationFee: "$75", tuition: "$77,168/年", requirements: ["GRE 330+", "TOEFL 100+", "CS背景"], description: "MIT CS项目是全球顶尖的计算机科学项目", category: "reach" },
   { id: "stanford-cs", schoolId: "stanford", name: "计算机科学硕士", nameEn: "MS in Computer Science", degree: "MS", department: "School of Engineering", duration: "2年", deadline: "2025-12-01", applicationFee: "$125", tuition: "$57,861/年", requirements: ["GRE 325+", "TOEFL 100+", "编程经验"], description: "斯坦福CS项目位于硅谷心脏地带", category: "reach" },
@@ -69,72 +90,164 @@ const programsDatabase: Omit<Program, "matchScore" | "matchReasons">[] = [
   { id: "ubc-cs", schoolId: "ubc", name: "计算机科学硕士", nameEn: "MSc in Computer Science", degree: "MSc", department: "CS", duration: "2年", deadline: "2025-01-15", applicationFee: "C$110", tuition: "C$9,000/年", requirements: ["TOEFL 90+"], description: "UBC CS性价比极高", category: "safety" },
 ];
 
+const programsDatabase: Omit<Program, "matchScore" | "matchReasons">[] = programsDatabaseRaw.map((p) => ({
+  ...p,
+  curriculumNote: buildCurriculumNote(p),
+}));
+
+const countryMapping: Record<string, string> = {
+  us: "美国",
+  uk: "英国",
+  ca: "加拿大",
+  au: "澳大利亚",
+  sg: "新加坡",
+  hk: "中国香港",
+  de: "德国",
+  jp: "日本",
+};
+
+const majorKeywordMapping: Array<{ keywords: string[]; programTags: string[] }> = [
+  { keywords: ["计算机", "cs", "computer"], programTags: ["cs", "ml", "ai"] },
+  { keywords: ["数据", "data"], programTags: ["ds", "ml", "cs"] },
+  { keywords: ["人工智能", "ai", "machine learning", "机器学习"], programTags: ["ml", "ai", "cs"] },
+  { keywords: ["金融", "finance", "fin"], programTags: ["mfin", "mfe", "mba"] },
+  { keywords: ["商业", "business", "mba"], programTags: ["mba", "ds"] },
+  { keywords: ["市场", "marketing"], programTags: ["mba"] },
+];
+
+function getProgramTagsByMajor(major: string): string[] {
+  const lowerMajor = major.toLowerCase();
+  const matched = majorKeywordMapping
+    .filter((item) => item.keywords.some((keyword) => lowerMajor.includes(keyword)))
+    .flatMap((item) => item.programTags);
+  return [...new Set(matched.length > 0 ? matched : ["cs"])];
+}
+
+function firstYearInText(text: string): number | null {
+  const m = text.match(/(\d+(?:\.\d+)?)\s*年?/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function matchDegree(programDegree: string, targetDegree: QuestionnaireData["personalInfo"]["targetDegree"]) {
+  if (!targetDegree) return true;
+  if (targetDegree === "master") return ["MS", "MSc", "MPhil", "MBA"].includes(programDegree);
+  if (targetDegree === "phd") return ["PhD", "DPhil"].includes(programDegree);
+  if (targetDegree === "bachelor") return ["BS", "BA", "BSc"].includes(programDegree);
+  return true;
+}
+
+function pickByCategory(schools: School[], category: School["category"], count: number): School[] {
+  return schools
+    .filter((school) => school.category === category)
+    .sort((a, b) => a.ranking - b.ranking)
+    .slice(0, count);
+}
+
+/** 用问卷里的本科/教育块与目标方向拼首条说明，不写申请批次类建议 */
+function buildProfileMatchHint(userData: QuestionnaireData): string | null {
+  const p = userData.personalInfo;
+  const edu0 = userData.education[0];
+  const school = edu0?.school?.trim();
+  const eduMajor = edu0?.major?.trim();
+  const undergradField = p.undergraduateMajor?.trim();
+  const intended =
+    p.intendedMajor?.trim() || p.intendedApplicationField?.trim();
+
+  const undergradParts = [school, eduMajor || undergradField].filter(Boolean);
+  if (undergradParts.length === 0 && !intended) return null;
+
+  let s = "已根据你在问卷里填写的基础信息";
+  if (undergradParts.length > 0) {
+    s += `：${undergradParts.join(" · ")}`;
+  }
+  if (intended) {
+    s += undergradParts.length > 0 ? `；目标方向为「${intended}」` : `：目标方向为「${intended}」`;
+  }
+  s += "，并据此筛选项目";
+  return s;
+}
+
 // 根据用户背景生成匹配结果
 export function generateMatchResult(userData: QuestionnaireData): MatchResult {
   const targetCountries = userData.personalInfo.targetCountry || [];
   const intendedMajor = userData.personalInfo.intendedMajor || "";
-  
-  // 筛选符合目标国家的学校
-  const countryMapping: Record<string, string> = {
-    us: "美国",
-    uk: "英国",
-    ca: "加拿大",
-    au: "澳大利亚",
-    sg: "新加坡",
-    hk: "中国香港",
-    de: "德国",
-    jp: "日本",
-  };
-  
+  const undergraduateMajor = userData.personalInfo.undergraduateMajor || "";
+  const intendedField = userData.personalInfo.intendedApplicationField || "";
+  const budgetEstimate = userData.personalInfo.budgetEstimate || "";
+  const plannedStudyDuration = userData.personalInfo.plannedStudyDuration || "";
+  const targetDegree = userData.personalInfo.targetDegree;
+
   const targetCountryNames = targetCountries.map((c) => countryMapping[c] || c);
-  
-  // 根据专业筛选项目
-  const majorMapping: Record<string, string[]> = {
-    "计算机科学": ["cs", "ml", "ai"],
-    "数据科学": ["ds", "ml", "cs"],
-    "人工智能": ["ml", "ai", "cs"],
-    "金融": ["mfin", "mfe", "mba"],
-    "商业分析": ["ds", "mba"],
-    "市场营销": ["mba"],
-  };
-  
-  const relevantProgramTypes = majorMapping[intendedMajor] || ["cs"];
-  
-  // 筛选学校
-  let filteredSchools = schoolsDatabase.filter((school) =>
+  const majorSearchText = [intendedMajor, intendedField, undergraduateMajor].filter(Boolean).join(" ");
+  const relevantProgramTypes = getProgramTagsByMajor(majorSearchText);
+
+  // 根据国家偏好筛选学校，若为空则回退到全量
+  const countryMatchedSchools = schoolsDatabase.filter((school) =>
     targetCountryNames.length === 0 || targetCountryNames.includes(school.country)
   );
-  
-  // 确保有足够的学校：冲刺2 + 主申3-4 + 保底2
-  const reachSchools = filteredSchools.filter((s) => s.category === "reach").slice(0, 2);
-  const matchSchools = filteredSchools.filter((s) => s.category === "match").slice(0, 4);
-  const safetySchools = filteredSchools.filter((s) => s.category === "safety").slice(0, 2);
-  
-  const selectedSchools = [...reachSchools, ...matchSchools, ...safetySchools];
+  const schoolPool = countryMatchedSchools.length > 0 ? countryMatchedSchools : schoolsDatabase;
+
+  // 目标档位：冲刺2 + 主申4 + 保底2
+  let selectedSchools = [
+    ...pickByCategory(schoolPool, "reach", 2),
+    ...pickByCategory(schoolPool, "match", 4),
+    ...pickByCategory(schoolPool, "safety", 2),
+  ];
+
+  // 若按国家筛选导致档位不足，补齐到总量 8 所
+  if (selectedSchools.length < 8) {
+    const selectedIds = new Set(selectedSchools.map((s) => s.id));
+    const fallbackSchools = schoolsDatabase
+      .filter((s) => !selectedIds.has(s.id))
+      .sort((a, b) => a.ranking - b.ranking)
+      .slice(0, 8 - selectedSchools.length);
+    selectedSchools = [...selectedSchools, ...fallbackSchools];
+  }
+
   const selectedSchoolIds = selectedSchools.map((s) => s.id);
-  
-  // 筛选项目
-  let filteredPrograms = programsDatabase.filter((program) =>
-    selectedSchoolIds.includes(program.schoolId) &&
-    relevantProgramTypes.some((type) => program.id.includes(type))
-  );
-  
-  // 如果项目不够，放宽条件
+
+  // 优先专业+学位双重匹配
+  let filteredPrograms = programsDatabase.filter((program) => {
+    if (!selectedSchoolIds.includes(program.schoolId)) return false;
+    const majorMatched = relevantProgramTypes.some((type) => program.id.includes(type));
+    const degreeMatched = matchDegree(program.degree, targetDegree);
+    return majorMatched && degreeMatched;
+  });
+
+  // 不足时放宽为仅匹配学位
   if (filteredPrograms.length < 12) {
-    filteredPrograms = programsDatabase.filter((program) =>
-      selectedSchoolIds.includes(program.schoolId)
+    filteredPrograms = programsDatabase.filter(
+      (program) => selectedSchoolIds.includes(program.schoolId) && matchDegree(program.degree, targetDegree)
     );
   }
-  
-  // 限制12-15个项目
-  filteredPrograms = filteredPrograms.slice(0, 15);
-  
+
+  // 仍不足时放宽为学校范围内全量
+  if (filteredPrograms.length < 12) {
+    filteredPrograms = programsDatabase.filter((program) => selectedSchoolIds.includes(program.schoolId));
+  }
+
+  // 限制 12-15 个项目
+  filteredPrograms = filteredPrograms
+    .sort((a, b) => {
+      const schoolA = selectedSchools.find((s) => s.id === a.schoolId)?.ranking || 999;
+      const schoolB = selectedSchools.find((s) => s.id === b.schoolId)?.ranking || 999;
+      return schoolA - schoolB;
+    })
+    .slice(0, 15);
+
   // 添加匹配分数和原因
+  const profileHint = buildProfileMatchHint(userData);
+
   const programs: Program[] = filteredPrograms.map((program) => {
     const school = selectedSchools.find((s) => s.id === program.schoolId);
     let matchScore = 75;
     const matchReasons: string[] = [];
-    
+    if (profileHint) {
+      matchReasons.push(profileHint);
+    }
+
     // 根据背景调整分数
     if (userData.education.length > 0) {
       const gpa = parseFloat(userData.education[0]?.gpa || "0");
@@ -161,7 +274,43 @@ export function generateMatchResult(userData: QuestionnaireData): MatchResult {
       matchScore += 3;
       matchReasons.push(`${userData.honors.length}项荣誉奖项`);
     }
-    
+
+    if (targetCountryNames.includes(school?.country || "")) {
+      matchScore += 4;
+      matchReasons.push("符合目标国家/地区偏好");
+    }
+
+    if (targetDegree && matchDegree(program.degree, targetDegree)) {
+      matchScore += 3;
+      matchReasons.push("学位层级匹配");
+    }
+
+    if (intendedMajor || intendedField) {
+      const majorHit = relevantProgramTypes.some((type) => program.id.includes(type));
+      if (majorHit) {
+        matchScore += 4;
+        matchReasons.push("专业方向匹配度高");
+      }
+    }
+
+    if (undergraduateMajor) {
+      matchScore += 2;
+      matchReasons.push("本科背景已纳入方向判断");
+    }
+
+    if (budgetEstimate) {
+      matchReasons.push(`预算参考：${budgetEstimate}`);
+    }
+
+    const userYears = firstYearInText(plannedStudyDuration);
+    const programYears = firstYearInText(program.duration);
+    if (userYears != null && programYears != null && Math.abs(userYears - programYears) < 0.01) {
+      matchScore += 2;
+      matchReasons.push("项目学制与期望接近");
+    } else if (plannedStudyDuration && /不限|flex|any/i.test(plannedStudyDuration)) {
+      matchReasons.push("学制偏好较灵活");
+    }
+
     // 根据学校类别调整
     if (school?.category === "reach") {
       matchScore -= 10;

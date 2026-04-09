@@ -2,43 +2,32 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Sparkles,
-  ArrowLeft,
-  RefreshCw,
-  Filter,
-  GraduationCap,
-  Building2,
-  ChevronRight,
-  Plus,
-  AlertCircle,
-} from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, LayoutGrid } from "lucide-react";
 import { GuestBanner } from "@/components/questionnaire/guest-banner";
 import { SchoolCard } from "@/components/match/school-card";
 import { ProgramCard } from "@/components/match/program-card";
 import { useQuestionnaire, useMatchResult } from "@/hooks/use-questionnaire";
 import { generateMatchResult } from "@/lib/mock-match";
-import type { School, Program } from "@/lib/types";
+import { getProgramIdsWithSavedDrafts } from "@/lib/document-drafts";
+import type { School } from "@/lib/types";
 
 type CategoryFilter = "all" | "reach" | "match" | "safety";
 
 export default function MatchPage() {
-  const router = useRouter();
-  const { data: questionnaireData, isLoaded: isQuestionnaireLoaded, canGenerateMatch } = useQuestionnaire();
+  const { data: questionnaireData, isLoaded: isQuestionnaireLoaded } = useQuestionnaire();
   const { result, isLoaded: isResultLoaded, saveResult } = useMatchResult();
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [addedPrograms, setAddedPrograms] = useState<string[]>([]);
-  
+  const [draftRefresh, setDraftRefresh] = useState(0);
+
   // 生成匹配结果
   useEffect(() => {
-    if (isQuestionnaireLoaded && isResultLoaded && !result && canGenerateMatch()) {
+    if (isQuestionnaireLoaded && isResultLoaded && !result) {
       setIsGenerating(true);
       // 模拟 AI 生成延迟
       setTimeout(() => {
@@ -47,7 +36,7 @@ export default function MatchPage() {
         setIsGenerating(false);
       }, 2000);
     }
-  }, [isQuestionnaireLoaded, isResultLoaded, result, canGenerateMatch, questionnaireData, saveResult]);
+  }, [isQuestionnaireLoaded, isResultLoaded, result, questionnaireData, saveResult]);
   
   // 从本地存储加载已添加的项目
   useEffect(() => {
@@ -56,7 +45,33 @@ export default function MatchPage() {
       setAddedPrograms(JSON.parse(stored));
     }
   }, []);
-  
+
+  useEffect(() => {
+    const bump = () => setDraftRefresh((n) => n + 1);
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", bump);
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", bump);
+    };
+  }, []);
+
+  const draftProgramIds = useMemo(() => {
+    void draftRefresh;
+    return getProgramIdsWithSavedDrafts();
+  }, [draftRefresh, addedPrograms.join(",")]);
+
+  const draftCountBySchoolId = useMemo(() => {
+    if (!result) return new Map<string, number>();
+    const map = new Map<string, number>();
+    for (const p of result.programs) {
+      if (draftProgramIds.has(p.id)) {
+        map.set(p.schoolId, (map.get(p.schoolId) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [result, draftProgramIds]);
+
   const handleAddProgram = (programId: string) => {
     const updated = [...addedPrograms, programId];
     setAddedPrograms(updated);
@@ -68,7 +83,19 @@ export default function MatchPage() {
     setAddedPrograms(updated);
     localStorage.setItem("edumatch_added_programs", JSON.stringify(updated));
   };
-  
+
+  const handleToggleSchoolPrograms = (schoolId: string) => {
+    if (!result) return;
+    const ids = result.programs.filter((p) => p.schoolId === schoolId).map((p) => p.id);
+    if (ids.length === 0) return;
+    const allIn = ids.every((id) => addedPrograms.includes(id));
+    const updated = allIn
+      ? addedPrograms.filter((id) => !ids.includes(id))
+      : [...new Set([...addedPrograms, ...ids])];
+    setAddedPrograms(updated);
+    localStorage.setItem("edumatch_added_programs", JSON.stringify(updated));
+  };
+
   const handleRegenerate = () => {
     setIsGenerating(true);
     setTimeout(() => {
@@ -96,46 +123,18 @@ export default function MatchPage() {
     if (selectedSchool) {
       programs = programs.filter((p) => p.schoolId === selectedSchool.id);
     }
-    
-    return programs.sort((a, b) => b.matchScore - a.matchScore);
+
+    return programs.sort((a, b) => {
+      const schoolA = result.schools.find((s) => s.id === a.schoolId)?.ranking || 999;
+      const schoolB = result.schools.find((s) => s.id === b.schoolId)?.ranking || 999;
+      return schoolA - schoolB;
+    });
   }, [result, categoryFilter, selectedSchool]);
-  
-  // 统计数据
-  const stats = useMemo(() => {
-    if (!result) return { reach: 0, match: 0, safety: 0, total: 0 };
-    return {
-      reach: result.schools.filter((s) => s.category === "reach").length,
-      match: result.schools.filter((s) => s.category === "match").length,
-      safety: result.schools.filter((s) => s.category === "safety").length,
-      total: result.schools.length,
-    };
-  }, [result]);
   
   if (!isQuestionnaireLoaded || !isResultLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-  
-  if (!canGenerateMatch()) {
-    return (
-      <div className="min-h-screen bg-background">
-        <GuestBanner />
-        <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
-          <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">请先完善基本信息</h1>
-          <p className="text-muted-foreground text-center mb-6">
-            完成个人信息和教育背景后，即可生成 AI 智能匹配结果
-          </p>
-          <Link href="/questionnaire">
-            <Button>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              返回填写问卷
-            </Button>
-          </Link>
-        </div>
       </div>
     );
   }
@@ -149,9 +148,9 @@ export default function MatchPage() {
             <div className="h-24 w-24 rounded-full border-4 border-primary/20 animate-pulse" />
             <Sparkles className="absolute inset-0 m-auto h-10 w-10 text-primary animate-bounce" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">AI 正在分析您的背景</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">正在匹配</h1>
           <p className="text-muted-foreground text-center">
-            正在匹配最适合您的学校和项目...
+            请稍候...
           </p>
         </div>
       </div>
@@ -159,145 +158,115 @@ export default function MatchPage() {
   }
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-dvh flex-col bg-background lg:h-dvh lg:overflow-hidden">
       <GuestBanner />
       
       {/* Header */}
-      <header className="sticky top-8 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-foreground hidden sm:inline">EduMatch</span>
-            </Link>
-            <span className="text-muted-foreground">/</span>
-            <span className="font-medium text-foreground">匹配结果</span>
-          </div>
+      <header className="sticky top-8 z-40 shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:static lg:top-auto">
+        <div className="mx-auto flex h-12 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
+              <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
+            </div>
+            <span className="hidden truncate font-semibold text-foreground sm:inline">EduMatch</span>
+          </Link>
           
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <Link href="/questionnaire">
-              <Button variant="outline" size="sm">
-                <RefreshCw className="mr-2 h-4 w-4" />
-                更新背景
+              <Button variant="outline" size="icon" className="h-8 w-8" aria-label="返回问卷" title="返回问卷">
+                <RefreshCw className="h-3.5 w-3.5" />
               </Button>
             </Link>
             <Link href="/workspace">
-              <Button size="sm">
-                进入工作台
-                <ChevronRight className="ml-1 h-4 w-4" />
+              <Button size="sm" className="h-8 px-3 text-xs">
+                工作台
+                <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>
         </div>
       </header>
       
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* 统计概览 */}
-        <div className="mb-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-                为您匹配了 {result?.schools.length || 0} 所学校
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                共 {result?.programs.length || 0} 个项目，已添加 {addedPrograms.length} 个到申请单
-              </p>
-            </div>
-            
-            <Button variant="outline" onClick={handleRegenerate}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              重新匹配
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 px-4 py-2 sm:px-6 lg:min-h-0 lg:overflow-hidden lg:pb-3 lg:pt-1">
+        {/* 统计 + 筛选 + 重匹配：同一视觉层级 */}
+        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Tabs value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as CategoryFilter)}>
+              <TabsList className="h-8 gap-0 p-0.5">
+                <TabsTrigger value="all" className="h-7 px-2.5 text-xs">
+                  全部
+                </TabsTrigger>
+                <TabsTrigger value="reach" className="h-7 px-2.5 text-xs">
+                  冲刺
+                </TabsTrigger>
+                <TabsTrigger value="match" className="h-7 px-2.5 text-xs">
+                  主申
+                </TabsTrigger>
+                <TabsTrigger value="safety" className="h-7 px-2.5 text-xs">
+                  保底
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleRegenerate}
+              aria-label="重匹配"
+              title="重匹配"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
-          
-          {/* 分类统计 */}
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-              <p className="text-sm text-orange-600">冲刺校</p>
-              <p className="text-2xl font-bold text-orange-700">{stats.reach}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <p className="text-sm text-blue-600">主申校</p>
-              <p className="text-2xl font-bold text-blue-700">{stats.match}</p>
-            </div>
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <p className="text-sm text-green-600">保底校</p>
-              <p className="text-2xl font-bold text-green-700">{stats.safety}</p>
-            </div>
-          </div>
         </div>
         
-        {/* 筛选 */}
-        <div className="mb-6">
-          <Tabs value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as CategoryFilter)}>
-            <TabsList>
-              <TabsTrigger value="all">全部</TabsTrigger>
-              <TabsTrigger value="reach">冲刺</TabsTrigger>
-              <TabsTrigger value="match">主申</TabsTrigger>
-              <TabsTrigger value="safety">保底</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        
-        {/* 主内容区 */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        {/* 主内容区：大屏占满视口剩余高度，左右各自滚动 */}
+        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(220px,260px)_1fr] lg:gap-4">
           {/* 学校列表 */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-32">
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="h-5 w-5 text-primary" />
-                <h2 className="font-semibold text-foreground">匹配学校</h2>
-              </div>
+          <aside className="flex min-h-0 flex-col lg:min-h-0">
+            <div className="min-h-[40vh] flex-1 space-y-1.5 overflow-y-auto pr-1 lg:min-h-0">
+              <button
+                type="button"
+                onClick={() => setSelectedSchool(null)}
+                aria-label={`全部学校项目，共 ${filteredPrograms.length} 项`}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2.5 text-sm shadow-sm transition-[box-shadow,border-color] duration-200 ${
+                  !selectedSchool
+                    ? "border-primary/35 bg-muted/30 shadow-md ring-1 ring-primary/10"
+                    : "border-border/80 hover:border-border hover:shadow-md"
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4 shrink-0 text-foreground/55" aria-hidden />
+                <span className="tabular-nums text-sm font-semibold text-foreground">
+                  {filteredPrograms.length}
+                </span>
+              </button>
               
-              <div className="space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                <button
-                  onClick={() => setSelectedSchool(null)}
-                  className={`w-full text-left rounded-lg border p-3 transition-all ${
-                    !selectedSchool
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
-                  }`}
-                >
-                  <p className="font-medium text-foreground">全部学校</p>
-                  <p className="text-sm text-muted-foreground">
-                    {filteredPrograms.length} 个项目
-                  </p>
-                </button>
-                
-                {filteredSchools.map((school) => {
-                  const programCount = result?.programs.filter(
-                    (p) => p.schoolId === school.id
-                  ).length || 0;
-                  
-                  return (
-                    <SchoolCard
-                      key={school.id}
-                      school={school}
-                      programCount={programCount}
-                      onClick={() => setSelectedSchool(school)}
-                      isSelected={selectedSchool?.id === school.id}
-                    />
-                  );
-                })}
-              </div>
+              {filteredSchools.map((school) => {
+                const schoolPrograms = result?.programs.filter((p) => p.schoolId === school.id) ?? [];
+                const programCount = schoolPrograms.length;
+
+                return (
+                  <SchoolCard
+                    key={school.id}
+                    school={school}
+                    programCount={programCount}
+                    schoolProgramIds={schoolPrograms.map((p) => p.id)}
+                    addedProgramIds={addedPrograms}
+                    onToggleSchoolPrograms={() => handleToggleSchoolPrograms(school.id)}
+                    draftProgramCount={draftCountBySchoolId.get(school.id) ?? 0}
+                    onSelect={() => setSelectedSchool(school)}
+                    isSelected={selectedSchool?.id === school.id}
+                  />
+                );
+              })}
             </div>
-          </div>
+          </aside>
           
           {/* 项目列表 */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-primary" />
-                <h2 className="font-semibold text-foreground">
-                  {selectedSchool ? selectedSchool.name : "全部项目"}
-                </h2>
-                <Badge variant="secondary">{filteredPrograms.length}</Badge>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
+          <section className="flex min-h-0 flex-col lg:min-h-0">
+            <div
+              className={`min-h-[40vh] flex-1 space-y-2 overflow-y-auto lg:min-h-0 ${addedPrograms.length > 0 ? "pb-14" : ""}`}
+            >
               {filteredPrograms.map((program) => {
                 const school = result?.schools.find((s) => s.id === program.schoolId);
                 if (!school) return null;
@@ -307,7 +276,9 @@ export default function MatchPage() {
                     key={program.id}
                     program={program}
                     school={school}
+                    showSchoolInHeader={!selectedSchool}
                     isAdded={addedPrograms.includes(program.id)}
+                    hasDocumentDraft={draftProgramIds.has(program.id)}
                     onAdd={() => handleAddProgram(program.id)}
                     onRemove={() => handleRemoveProgram(program.id)}
                   />
@@ -315,25 +286,24 @@ export default function MatchPage() {
               })}
               
               {filteredPrograms.length === 0 && (
-                <div className="rounded-xl border-2 border-dashed border-border p-12 text-center">
-                  <GraduationCap className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">暂无匹配项目</p>
+                <div className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+                  暂无项目
                 </div>
               )}
             </div>
-          </div>
+          </section>
         </div>
         
         {/* 底部操作栏 */}
         {addedPrograms.length > 0 && (
           <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur p-4 z-50">
             <div className="mx-auto max-w-7xl flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                已添加 <span className="font-semibold text-foreground">{addedPrograms.length}</span> 个项目到申请单
+              <p className="text-sm tabular-nums text-muted-foreground">
+                已选 <span className="font-medium text-foreground">{addedPrograms.length}</span>
               </p>
               <Link href="/workspace">
                 <Button>
-                  进入工作台管理申请
+                  去工作台
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               </Link>

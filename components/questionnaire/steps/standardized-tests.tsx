@@ -306,9 +306,6 @@ export function StandardizedTestsForm({ data, onChange }: StandardizedTestsFormP
         </TabsContent>
       </Tabs>
 
-      <p className="text-sm text-muted-foreground italic">
-        提示：如果您还没有参加考试，可以跳过此步骤，之后再补充
-      </p>
     </div>
   );
 }
