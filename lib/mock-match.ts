@@ -99,6 +99,10 @@ const programsDatabase: Omit<Program, "matchScore" | "matchReasons">[] = program
   curriculumNote: buildCurriculumNote(p),
 }));
 
+export function listAllProgramIds(): string[] {
+  return programsDatabaseRaw.map((p) => p.id);
+}
+
 const countryMapping: Record<string, string> = {
   us: "美国",
   uk: "英国",
